@@ -14,23 +14,24 @@
 
 #include <utility>
 
+typedef long long i_type;
 class TreeNode {
 public:
-	int key; // key
-	int Cj; // The best coverage
-	int j; // The Tuple index that the best coverage corresponds to
+	i_type key; // key
+	i_type Cj; // The best coverage
+	i_type j; // The Tuple index that the best coverage corresponds to
 
 	// Dummy needed for initializing the array
 	TreeNode() {
 	}
 	
-	TreeNode(int key, int j, int Cj) {
+	TreeNode(i_type key, i_type j, i_type Cj) {
 		this->key = key;
 		this->Cj = Cj;
 		this->j = j;
 	}
 
-	void setValues(int key, int j, int Cj) {
+	void setValues(i_type key, i_type j, i_type Cj) {
 		this->key = key;
 		this->Cj = Cj;
 		this->j = j;
@@ -41,16 +42,16 @@ class RMaxQTree {
 
 private:
 	TreeNode *tree;
-	int *keys;
-	int treeLen, keyLen;
+	i_type *keys;
+	i_type treeLen, keyLen;
 
-	void init(int node, int b, int e, int *keys);
-
-	// Recursive helper function
-	void updateTree(int key, int j, int Cj, int node, int b, int e);
+	void init(i_type node, i_type b, i_type e, i_type *keys);
 
 	// Recursive helper function
-	std::pair<int,int> queryTree(int i, int j, int node, int b, int e);
+	void updateTree(i_type key, i_type j, i_type Cj, i_type node, i_type b, i_type e);
+
+	// Recursive helper function
+	std::pair<i_type,i_type> queryTree(i_type i, i_type j, i_type node, i_type b, i_type e);
 
 public:
 
@@ -60,15 +61,15 @@ public:
 	~RMaxQTree();
 
 	// For filling the empty RMaxQTrees
-	void fillRMaxQTree(int *keys, int keyLen);
+	void fillRMaxQTree(i_type *keys, i_type keyLen);
 
-	RMaxQTree(int *keys, int keyLen);
+	RMaxQTree(i_type *keys, i_type keyLen);
 
 	// Update the node with key "key" with the given values
-	void update(int key, int j, int Cj);
+	void update(i_type key, i_type j, i_type Cj);
 
 	// Return pair (j,C[j])
-	std::pair<int,int> query(int start, int end);
+	std::pair<i_type,i_type> query(i_type start, i_type end);
 };
 
 #endif /* _RMaxQTREE_H_ */

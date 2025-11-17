@@ -5,14 +5,20 @@
 #include <set>
 #include <algorithm>
 #include <climits>
-#include "RMaxQTree.h"
 #include <unordered_set>
 #include <chrono>
+#include <limits>
+
+#include "RMaxQTree.h"
+#include "block_graph.hpp"
+
 using namespace std::chrono;
 using namespace std;
+using eds::block_graph::block_graph, eds::block_graph::segment_msa, eds::block_graph::output_msa_info, eds::block_graph::output_segmentation, eds::block_graph::output_block_info, eds::block_graph::output_block_graph;
 
-const int INF = INT_MAX;
 bool verbose = false;
+typedef eds::block_graph::seg_index seg_index;
+typedef long long int key_type;
 
 // Reads sequences from a FASTA file
 vector<string> read_fasta(const string& filename) {
@@ -37,34 +43,34 @@ vector<string> read_fasta(const string& filename) {
     return sequences;
 }
 
-vector<vector<pair<int, int>>> compute_meaningful_extensions(
-    const vector<string>& msa, int L, int U)
+vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
+    const vector<string>& msa, seg_index L, seg_index U)
 {
-    int r = msa.size();
-    int c = msa[0].size();
+    seg_index r = msa.size();
+    seg_index c = msa[0].size();
 
-    vector<vector<pair<int, int>>> L_y(c + 1);  // 1-based indexing
+    vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
-    for (int y = 1; y <= c; ++y) {
+    for (seg_index y = 1; y <= c; ++y) {
         if (y < L) {
             continue;  // No extension possible
         }
 
-        vector<pair<int, int>> current;
+        vector<pair<seg_index, seg_index>> current;
 
         // Enforce ℓ_{y,1} = y - L + 1 down to ℓ_{y,d_y} > y - U
-        int prev_height = -1;
-        for (int len = L; len <= U && y - len + 1 >= 1; ++len) {
-            int start = y - len + 1;
+        seg_index prev_height = -1;
+        for (seg_index len = L; len <= U && y - len + 1 >= 1; ++len) {
+            seg_index start = y - len + 1;
             unordered_set<string> unique_strings;
 
-            for (int i = 0; i < r; ++i) {
+            for (seg_index i = 0; i < r; ++i) {
                 string s = msa[i].substr(start - 1, len);
                 s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps
                 unique_strings.insert(s);
             }
 
-            int height = unique_strings.size();
+            seg_index height = unique_strings.size();
             if (height != prev_height) {
                 current.emplace_back(start, height);
                 prev_height = height;
@@ -72,47 +78,45 @@ vector<vector<pair<int, int>>> compute_meaningful_extensions(
         }
 
         // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
-        current.emplace_back(max(0, y - U), -1);
+        current.emplace_back(max((seg_index)0, y - U), -1);
         L_y[y] = current;
     }
 
     return L_y;
 }
 
-pair<int, vector<pair<int, int>>> segment_with_rmq(
-    const vector<vector<pair<int, int>>>& L_y, int c)
+pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
+    const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c)
 {
-    const int INF = 1 << 30;
-
-    vector<int> m(c + 1, INF);      // m[y] is the DP value: minimal number of strings
-    vector<int> mneg(c + 1, -INF);  // store -m[y] for max-query simulation
-    vector<int> back(c + 1, -1);    // traceback
+    vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());      // m[y] is the DP value: minimal number of strings
+    vector<seg_index> mneg(c + 1, numeric_limits<seg_index>::min());  // store -m[y] for max-query simulation
+    vector<seg_index> back(c + 1, -1);    // traceback
 
     m[0] = 0;
     mneg[0] = 0;
 
     // Initial fill of keys = 0..c
-    vector<int> keys(c + 1);
-    for (int i = 0; i <= c; ++i) keys[i] = i;
+    vector<key_type> keys(c + 1);
+    for (key_type i = 0; i <= c; ++i) keys[i] = i;
 
     // Initialize RMaxQTree with negated m-values
     RMaxQTree rmq;
     rmq.fillRMaxQTree(keys.data(), c + 1);
     rmq.update(0, 0, 0);  // set index 0 with mneg[0] = 0
 
-    for (int y = 1; y <= c; ++y) {
-        m[y] = INF;
+    for (key_type y = 1; y <= c; ++y) {
+        m[y] = numeric_limits<key_type>::max();
 
         const auto& L = L_y[y];
 
         for (size_t j = 0; j + 1 < L.size(); ++j) {
-            int l = L[j + 1].first;
-            int r = L[j].first - 1;
+            key_type l = L[j + 1].first;
+            key_type r = L[j].first - 1;
             if (l > r) continue;
 
             // query returns pair (index, value), but value is -m[index]
             auto [x, neg_mx] = rmq.query(l, r);
-            int candidate = L[j].second + m[x];
+            key_type candidate = L[j].second + m[x];
 
             if (candidate < m[y]) {
                 m[y] = candidate;
@@ -125,8 +129,8 @@ pair<int, vector<pair<int, int>>> segment_with_rmq(
     }
 
     // Traceback
-    vector<pair<int, int>> segments;
-    for (int pos = c; pos > 0; pos = back[pos]) {
+    vector<pair<seg_index, seg_index>> segments;
+    for (key_type pos = c; pos > 0; pos = back[pos]) {
         segments.emplace_back(back[pos] + 1, pos);
     }
     reverse(segments.begin(), segments.end());
@@ -134,8 +138,8 @@ pair<int, vector<pair<int, int>>> segment_with_rmq(
     return {m[c], segments};
 }
 
-// Print EDS from segmentation
-void print_eds(const vector<string>& msa, const vector<pair<int, int>>& segments, string out_filename = "") {
+// Prseg_index EDS from segmentation
+void prseg_index_eds(const vector<string>& msa, const vector<pair<seg_index, seg_index>>& segments, string out_filename = "") {
     std::ofstream outFile;
     if (out_filename.size()==0) 
         cout << "Elastic Degenerate String (EDS):\n";
@@ -168,8 +172,8 @@ void print_eds(const vector<string>& msa, const vector<pair<int, int>>& segments
 }
 
 // Count the total cardinality of sets
-int card_eds(const vector<string>& msa, const vector<pair<int, int>>& segments) {
-    int card = 0;
+seg_index card_eds(const vector<string>& msa, const vector<pair<seg_index, seg_index>>& segments) {
+    seg_index card = 0;
     for (const auto& [l, r] : segments) {
         set<string> unique_subs;
         for (const auto& seq : msa) {
@@ -185,8 +189,8 @@ int card_eds(const vector<string>& msa, const vector<pair<int, int>>& segments) 
 // Main function
 int main(int argc, char* argv[]) {
     string filename = "example.fasta";
-    int L = 1;
-    int U = 10;
+    seg_index L = 1;
+    seg_index U = 10;
 
     if (argc<=1) {
       cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") verbose (default 0)" << endl;
@@ -210,7 +214,7 @@ int main(int argc, char* argv[]) {
     cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
     if (verbose) {
         cout << "Meaningful left extensions and heights:\n";
-        for (int y = 1; y < L_y.size(); ++y) {
+        for (seg_index y = 1; y < L_y.size(); ++y) {
             if (L_y[y].empty()) continue;
             cout << "y = " << y << ":\n";
             for (size_t j = 0; j < L_y[y].size(); ++j) {
@@ -231,9 +235,15 @@ int main(int argc, char* argv[]) {
            cout << "[" << l << "," << r << "] ";
        cout << "\n";
 
-       print_eds(msa, segments);
+       prseg_index_eds(msa, segments);
     }
-    print_eds(msa,segments,filename + ".eds.txt");
+    //prseg_index_eds(msa,segments,filename + ".eds.txt");
+    block_graph eds = segment_msa(filename, msa[0].size(), segments);
+    ofstream out(filename + ".gfa");
+    output_msa_info(msa.size(), msa[0].size(), out);
+    output_segmentation(segments, out);
+    output_block_info(eds, out);
+    output_block_graph(eds, out);
     cout << "Minimum segmentation cardinality after gap removal: " << card_eds(msa, segments) << "\n";
     return 0;
 }

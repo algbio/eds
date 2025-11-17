@@ -1,6 +1,10 @@
 # eds
 Constructing EDSes from MSAs
 # compile 
-g++ -std=c++17 -O2 msa2eds-mincard.cpp RMaxQTree.cpp -o msa2eds-mincard
+```
+make
+```
 # execute
-./msa2eds-mincard example.fasta 4
+./msa2eds-mincard test/example.fasta 4
+# todo
+- variant of min card algorithm that considers also segments of any length with no variation
