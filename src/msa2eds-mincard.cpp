@@ -91,9 +91,9 @@ vector<bool> compute_perfect_columns(
     seg_index c = msa[0].size();
     assert(r > 0);
 
-    vector<bool> perfect_columns(c + 1, true);
+    vector<bool> perfect_columns(c + 1, true); // 1-indexed
     for (seg_index y = 1; y <= c; ++y) {
-        char consensus = msa[0][y-1];
+        const char consensus = msa[0][y-1];
         for (seg_index i = 2; i <= r; ++i) {
             if (msa[i-1][y-1] != consensus) {
                 perfect_columns[y] = false;
@@ -113,6 +113,10 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
     vector<seg_index> mneg(c + 1, numeric_limits<seg_index>::min());  // store -m[y] for max-query simulation
     vector<seg_index> back(c + 1, -1);    // traceback
     seg_index perfect_back = -1, perfect_m = numeric_limits<seg_index>::max();
+    if (allow_perfect_segments and perfect_columns[0]) {
+        perfect_m = 0;
+        perfect_back = 0;
+    }
 
     m[0] = 0;
     mneg[0] = 0;
@@ -147,20 +151,23 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
             }
         }
 
+        if (allow_perfect_segments and perfect_columns[y]) {
+            if (perfect_m < numeric_limits<seg_index>::max() and perfect_m + 1 <= m[y]) {
+                m[y] = perfect_m + 1;
+                back[y] = perfect_back;
+            }
+        }
+
         mneg[y] = -m[y];
         rmq.update(y, y, mneg[y]);
 
         // optional
-        if (allow_perfect_segments and perfect_columns[y]) {
-            if (perfect_m < numeric_limits<seg_index>::max() and perfect_m + 1 < m[y]) {
-                m[y] = perfect_m + 1;
-                back[y] = perfect_back;
-            }
+        if (allow_perfect_segments and y < c and perfect_columns[y+1]) {
             if (m[y] < perfect_m) {
                 perfect_m = m[y];
                 perfect_back = y;
             }
-        } else if (allow_perfect_segments and !perfect_columns[y]) {
+        } else if (allow_perfect_segments and y < c and !perfect_columns[y+1]) {
             perfect_m = numeric_limits<seg_index>::max();
             perfect_back = -1;
         }

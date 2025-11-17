@@ -75,7 +75,7 @@ std::pair<i_type,i_type> RMaxQTree::queryTree(i_type i, i_type j, i_type node, i
 		return right;
 	if (right.second == negative_infinity)
 		return left;
-	if (left.second >= right.second)
+	if (left.second > right.second) // NR: prefer higher value
 		return left;
 	return right;
 }
