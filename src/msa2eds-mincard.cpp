@@ -85,12 +85,34 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
     return L_y;
 }
 
+vector<bool> compute_perfect_columns(
+    const vector<string>& msa) {
+    seg_index r = msa.size();
+    seg_index c = msa[0].size();
+    assert(r > 0);
+
+    vector<bool> perfect_columns(c + 1, true);
+    for (seg_index y = 1; y <= c; ++y) {
+        char consensus = msa[0][y-1];
+        for (seg_index i = 2; i <= r; ++i) {
+            if (msa[i-1][y-1] != consensus) {
+                perfect_columns[y] = false;
+                break;
+            }
+        }
+    }
+    return perfect_columns;
+}
+
+const vector<bool> perfect_columns_dummy = {};
 pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
-    const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c)
+    const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c, const vector<bool> &perfect_columns = perfect_columns_dummy)
 {
+    const bool allow_perfect_segments = (perfect_columns.size() > 0);
     vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());      // m[y] is the DP value: minimal number of strings
     vector<seg_index> mneg(c + 1, numeric_limits<seg_index>::min());  // store -m[y] for max-query simulation
     vector<seg_index> back(c + 1, -1);    // traceback
+    seg_index perfect_back = -1, perfect_m = numeric_limits<seg_index>::max();
 
     m[0] = 0;
     mneg[0] = 0;
@@ -109,6 +131,7 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
 
         const auto& L = L_y[y];
 
+        // optimal solution using L_y
         for (size_t j = 0; j + 1 < L.size(); ++j) {
             key_type l = L[j + 1].first;
             key_type r = L[j].first - 1;
@@ -126,6 +149,21 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
 
         mneg[y] = -m[y];
         rmq.update(y, y, mneg[y]);
+
+        // optional
+        if (allow_perfect_segments and perfect_columns[y]) {
+            if (perfect_m < numeric_limits<seg_index>::max() and perfect_m + 1 < m[y]) {
+                m[y] = perfect_m + 1;
+                back[y] = perfect_back;
+            }
+            if (m[y] < perfect_m) {
+                perfect_m = m[y];
+                perfect_back = y;
+            }
+        } else if (allow_perfect_segments and !perfect_columns[y]) {
+            perfect_m = numeric_limits<seg_index>::max();
+            perfect_back = -1;
+        }
     }
 
     // Traceback
@@ -191,9 +229,10 @@ int main(int argc, char* argv[]) {
     string filename = "example.fasta";
     seg_index L = 1;
     seg_index U = 10;
+    bool allow_perfect_segments = false;
 
     if (argc<=1) {
-      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") verbose (default 0)" << endl;
+      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) verbose (default 0)" << endl;
       return 0;
     }
 
@@ -201,7 +240,9 @@ int main(int argc, char* argv[]) {
     if (argc>2)
       U = atoi(argv[2]);
     if (argc>3)
-      verbose = atoi(argv[3]);
+      allow_perfect_segments = atoi(argv[3]) > 0;
+    if (argc>4)
+      verbose = atoi(argv[4]);
     auto msa = read_fasta(filename);
     if (msa.empty()) {
         cerr << "MSA file is empty or not found.\n";
@@ -222,8 +263,13 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+
+    vector<bool> perfect_columns = {};
+    if (allow_perfect_segments) {
+            perfect_columns = compute_perfect_columns(msa);
+    }
     auto start_dp = high_resolution_clock::now();
-    auto [cost, segments] = segment_with_rmq(L_y, msa[0].size());
+    auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
     auto stop_dp = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop_dp-start_dp);
     cout << "DP took " << duration.count() << " milliseconds" << endl;
