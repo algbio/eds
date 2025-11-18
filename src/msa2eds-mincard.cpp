@@ -98,7 +98,7 @@ pair<seg_index,vector<bool>> compute_perfect_columns(
         for (seg_index i = 2; i <= r; ++i) {
             if (msa[i-1][y-1] != consensus) {
                 perfect_columns[y] = false;
-		np += 1;
+                np += 1;
                 break;
             }
         }
@@ -257,6 +257,7 @@ int main(int argc, char* argv[]) {
         cerr << "MSA file is empty or not found.\n";
         return 1;
     }
+    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
     auto start_pre = high_resolution_clock::now();
     auto L_y = compute_meaningful_extensions(msa, L, U);
     auto stop_pre = high_resolution_clock::now();
@@ -276,8 +277,8 @@ int main(int argc, char* argv[]) {
     vector<bool> perfect_columns = {};
     if (allow_perfect_segments) {
             auto [p, p_cols] = compute_perfect_columns(msa);
-	    std::swap(p_cols, perfect_columns);
-	    cout << "MSA contains " << p << " perfect columns" << endl;
+            std::swap(p_cols, perfect_columns);
+            cout << "MSA contains " << p << " perfect columns" << endl;
     }
     auto start_dp = high_resolution_clock::now();
     auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
@@ -295,12 +296,13 @@ int main(int argc, char* argv[]) {
        prseg_index_eds(msa, segments);
     }
     //prseg_index_eds(msa,segments,filename + ".eds.txt");
-    block_graph eds = segment_msa(filename, msa[0].size(), segments);
+    auto [eds, card, size] = segment_msa(filename, msa[0].size(), segments);
     ofstream out(filename + ".gfa");
     output_msa_info(msa.size(), msa[0].size(), out);
     output_segmentation(segments, out);
     output_block_info(eds, out);
     output_block_graph(eds, out);
-    //cout << "Minimum segmentation cardinality after gap removal: " << card_eds(msa, segments) << "\n";
+    cout << "Cardinality after gap removal: " << card << endl;
+    cout << "Gap-aware size after gap removal: " << size << endl;
     return 0;
 }

@@ -15,7 +15,8 @@ using std::vector;
 using std::string;
 using std::ifstream, std::ofstream;
 using std::cerr, std::endl;
-using std::pair;
+using std::pair, std::tuple;
+using std::max;
 
 // code adapted from https://github.com/algbio/founderblockgraphs/tree/rewrite
 namespace eds::block_graph {
@@ -35,7 +36,7 @@ namespace eds::block_graph {
     /* requires: segmentation S is sorted vector of pairs starting at (1,x) and ending at (y,n)
      * returns: elastic block graph (or a layered DAG if a segments contains the empty string)
      * notes: MSA is streamed from disk, graph (no paths) is kept in memory */
-    block_graph segment_msa(const string &msa_path, const long long n, const segmentation &S) {
+    tuple<block_graph,seg_index,seg_index> segment_msa(const string &msa_path, const long long n, const segmentation &S) {
         assert(S.at(0).first == 1 and S.back().second == n);
 #ifdef BLOCK_GRAPH_HPP_DEBUG
         cerr << "DEBUG: segmentation segment starts are ";
@@ -47,6 +48,7 @@ namespace eds::block_graph {
         vector<unordered_map<string,unsigned long>> blocks(S.size());
         unordered_map<unsigned long,unsigned long> node_to_block;
         unordered_map<unsigned long,unordered_set<unsigned long>> adjacency_lists;
+        seg_index card = 0, size = 0; // gap-aware size
 
         ifstream msa_if(msa_path);
         string line = "", sequence = "";
@@ -77,6 +79,8 @@ namespace eds::block_graph {
                         // new node
                         const unsigned long newid = nodes++;
                         blocks[i].insert({ label, newid });
+                        card += 1;
+                        size += max(label.size(), 1LU);
                         node_to_block.insert({ newid, i });
                         adjacency_lists.insert({ newid, unordered_set<unsigned long>() });
                         if (prev != SEG_INDEX_MAX) {
@@ -117,6 +121,8 @@ namespace eds::block_graph {
                     // new node
                     const unsigned long newid = nodes++;
                     blocks[i].insert({ label, newid });
+                    card += 1;
+                    size += label.size();
                     node_to_block.insert({ newid, i });
                     adjacency_lists.insert({ newid, unordered_set<unsigned long>() });
                     if (prev != SEG_INDEX_MAX) {
@@ -142,7 +148,7 @@ namespace eds::block_graph {
         cerr << endl;
 #endif
 
-        return block_graph({ std::move(blocks), std::move(node_to_block), std::move(adjacency_lists) });
+        return { block_graph({ std::move(blocks), std::move(node_to_block), std::move(adjacency_lists) }), card, size };
     }
 
     void output_msa_info(const long long m, const long long n, ofstream &out) {
