@@ -300,6 +300,6 @@ int main(int argc, char* argv[]) {
     output_segmentation(segments, out);
     output_block_info(eds, out);
     output_block_graph(eds, out);
-    cout << "Minimum segmentation cardinality after gap removal: " << card_eds(msa, segments) << "\n";
+    //cout << "Minimum segmentation cardinality after gap removal: " << card_eds(msa, segments) << "\n";
     return 0;
 }
