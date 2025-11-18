@@ -1,3 +1,10 @@
 msa2eds-mincard
 test/*.txt
 test/*.gfa
+
+experiments/e_coli_sim/input/e_coli_K-12_MG1655.fasta
+experiments/e_coli_sim/input/e_coli_K-12_MG1655_dataset.zip
+experiments/e_coli_sim/input/msa.fa
+experiments/e_coli_sim/input/msa.unaligned.fa
+experiments/e_coli_sim/input/tree.nwk.log
+experiments/e_coli_sim/output
