@@ -8,3 +8,7 @@ experiments/e_coli_sim/input/msa.fa
 experiments/e_coli_sim/input/msa.unaligned.fa
 experiments/e_coli_sim/input/tree.nwk.log
 experiments/e_coli_sim/output
+
+experiments/covid/input/covid19-ecoli-efg.zip
+experiments/covid/input/covid19-100.fa
+experiments/covid/output

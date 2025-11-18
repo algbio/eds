@@ -6,7 +6,7 @@ cd $thisfolder
 mincard=$thisfolder/../../msa2eds-mincard
 seqtoed=$thisfolder/../ext/junctions/scripts/msatoeds/seq_to_ed.py
 getstats=$thisfolder/../ext/junctions/scripts/msatoeds/get_stats.py
-inputmsa=$thisfolder/input/msa.fa
+inputmsa=$thisfolder/input/covid19-100.fa
 usrbintimeformat="%e total time"
 
 mkdir output
