@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
     auto start_pre = high_resolution_clock::now();
     auto L_y = compute_meaningful_extensions(msa, L, U);
     auto stop_pre = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop_pre-start_pre);
+    auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
     cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
     if (verbose) {
         cout << "Meaningful left extensions and heights:\n";
@@ -281,7 +281,7 @@ int main(int argc, char* argv[]) {
     auto start_dp = high_resolution_clock::now();
     auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
     auto stop_dp = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop_dp-start_dp);
+    duration = duration_cast<milliseconds>(stop_dp-start_dp);
     cout << "DP took " << duration.count() << " milliseconds" << endl;
 
     cout << "Minimum segmentation cardinality: " << cost << endl;
