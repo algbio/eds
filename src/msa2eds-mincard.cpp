@@ -275,7 +275,8 @@ int main(int argc, char* argv[]) {
 
     vector<bool> perfect_columns = {};
     if (allow_perfect_segments) {
-            auto [p, perfect_columns] = compute_perfect_columns(msa);
+            auto [p, p_cols] = compute_perfect_columns(msa);
+	    std::swap(p_cols, perfect_columns);
 	    cout << "MSA contains " << p << " perfect columns" << endl;
     }
     auto start_dp = high_resolution_clock::now();
