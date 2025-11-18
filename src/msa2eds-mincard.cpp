@@ -85,10 +85,11 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
     return L_y;
 }
 
-vector<bool> compute_perfect_columns(
+pair<seg_index,vector<bool>> compute_perfect_columns(
     const vector<string>& msa) {
     seg_index r = msa.size();
     seg_index c = msa[0].size();
+    seg_index np = 0;
     assert(r > 0);
 
     vector<bool> perfect_columns(c + 1, true); // 1-indexed
@@ -97,11 +98,12 @@ vector<bool> compute_perfect_columns(
         for (seg_index i = 2; i <= r; ++i) {
             if (msa[i-1][y-1] != consensus) {
                 perfect_columns[y] = false;
+		np += 1;
                 break;
             }
         }
     }
-    return perfect_columns;
+    return {c - np, std::move(perfect_columns)};
 }
 
 const vector<bool> perfect_columns_dummy = {};
@@ -273,7 +275,8 @@ int main(int argc, char* argv[]) {
 
     vector<bool> perfect_columns = {};
     if (allow_perfect_segments) {
-            perfect_columns = compute_perfect_columns(msa);
+            auto [p, perfect_columns] = compute_perfect_columns(msa);
+	    cout << "MSA contains " << p << " perfect columns" << endl;
     }
     auto start_dp = high_resolution_clock::now();
     auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
@@ -281,7 +284,7 @@ int main(int argc, char* argv[]) {
     duration = duration_cast<microseconds>(stop_dp-start_dp);
     cout << "DP took " << duration.count() << " milliseconds" << endl;
 
-    cout << "Minimum segmentation cardinality: " << cost << "\n";
+    cout << "Minimum segmentation cardinality: " << cost << endl;
     if (verbose) {
        cout << "Segments:\n";
        for (auto [l, r] : segments)
