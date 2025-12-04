@@ -1,10 +1,14 @@
 # eds
 Constructing EDSes from MSAs
-# compile 
+
+## compile 
 ```
 make
 ```
-# execute
+
+## execute
 ./msa2eds-mincard test/example.fasta 4
-# todo
-- variant of min card algorithm that considers also segments of any length with no variation
+
+## todo
+- output in .eds format
+- QC on the built edses (verify input sequences)
