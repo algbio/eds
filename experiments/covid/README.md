@@ -1,4 +1,4 @@
-# `e_coli_sim`
+# `covid`
 Get the dataset with command
 ```
 ./get_datasets.sh
@@ -9,4 +9,9 @@ Compile `msa2eds-mincard`, obtain the `msatoeds` scripts, and run the experiment
 make -C ../../
 git submodule update --init ../ext/junctions
 ./run_experiment.sh
+```
+
+Afterwards, the resulting EDSes can be verified using 16 threads with script
+```
+./verify_edses.sh 16
 ```

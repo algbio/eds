@@ -14,23 +14,23 @@ cd output
 ln -s $inputmsa msa.fa
 
 # mincard
-for U in 4 8 16 32 64 128
+for U in 4 8 16 32 64
 do
 	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U
-	mv msa.fa.gfa eds_U$U.gfa
+	mv msa.fa.eds mincard_U${U}.eds
 done
 
 # mincard pc
-for U in 4 8 16 32 64 128
+for U in 4 8 16 32 64
 do
 	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U 1
-	mv msa.fa.gfa eds_U$U.gfa
+	mv msa.fa.eds mincard_U${U}_perfectcols.eds
 done
 
 # msatoeds heuristics
 for strat in trivial greedy double-greedy
 do
 	echo "Strategy ${strat}"
-	/usr/bin/time -f"$usrbintimeformat" python3 $seqtoed msa.fa "eds_${strat}.txt" ${strat}
-	python3 $getstats "eds_${strat}.txt" eds
+	/usr/bin/time -f"$usrbintimeformat" python3 $seqtoed msa.fa "${strat}.eds" ${strat}
+	python3 $getstats "${strat}.eds" eds
 done

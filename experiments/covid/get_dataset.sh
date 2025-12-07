@@ -6,3 +6,11 @@ wget "https://www.cs.helsinki.fi/group/gsa/efg-mems/covid19-ecoli-efg.zip" --out
 unzip -p input/covid19-ecoli-efg.zip \
 	inputs/covid19-100.fa \
 	> input/covid19-100.fa
+
+# change all ambiguous nucleotides to Ns
+awk '{
+	if (substr($0, 1, 1) == ">")
+		{print}
+	else
+		{gsub(/[RYSWKMBDHV]/, "N"); print}
+	}' input/covid19-100.fa > input/covid19-100-N.fa

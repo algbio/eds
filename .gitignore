@@ -1,16 +1,18 @@
 msa2eds-mincard
-test/*.txt
+test/*.eds
 test/*.gfa
 
 experiments/e_coli_sim/input/e_coli_K-12_MG1655.fasta
 experiments/e_coli_sim/input/e_coli_K-12_MG1655_dataset.zip
 experiments/e_coli_sim/input/msa.fa
 experiments/e_coli_sim/input/msa.unaligned.fa
-experiments/e_coli_sim/input/tree.nwk.log
+experiments/e_coli_sim/input/msa.treefile
+experiments/e_coli_sim/input/msa.treefile.log
 experiments/e_coli_sim/output
 
 experiments/covid/input/covid19-ecoli-efg.zip
 experiments/covid/input/covid19-100.fa
+experiments/covid/input/covid19-100-N.fa
 experiments/covid/output
 
 experiments/chr19/input/hr19_100.aligned.fa.xz.00

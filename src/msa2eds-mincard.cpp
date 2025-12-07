@@ -14,7 +14,7 @@
 
 using namespace std::chrono;
 using namespace std;
-using eds::block_graph::block_graph, eds::block_graph::segment_msa, eds::block_graph::output_msa_info, eds::block_graph::output_segmentation, eds::block_graph::output_block_info, eds::block_graph::output_block_graph;
+using eds::block_graph::block_graph, eds::block_graph::segment_msa, eds::block_graph::output_msa_info, eds::block_graph::output_segmentation, eds::block_graph::output_block_info, eds::block_graph::output_block_graph, eds::block_graph::output_eds;
 
 bool verbose = false;
 typedef eds::block_graph::seg_index seg_index;
@@ -239,9 +239,10 @@ int main(int argc, char* argv[]) {
     seg_index L = 1;
     seg_index U = 10;
     bool allow_perfect_segments = false;
+    bool gfa_output = false;
 
     if (argc<=1) {
-      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) verbose (default 0)" << endl;
+      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) gfa-output (default 0) verbose (default 0)" << endl;
       return 0;
     }
 
@@ -251,13 +252,18 @@ int main(int argc, char* argv[]) {
     if (argc>3)
       allow_perfect_segments = atoi(argv[3]) > 0;
     if (argc>4)
-      verbose = atoi(argv[4]);
+      gfa_output = atoi(argv[4]) > 0;
+    if (argc>5)
+      verbose = atoi(argv[5]);
+    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
+
     auto msa = read_fasta(filename);
     if (msa.empty()) {
         cerr << "MSA file is empty or not found.\n";
         return 1;
+    } else {
+        cerr << "MSA[1.." << msa.size() << " ,1.." << msa[0].size() << "] read" << endl;
     }
-    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
     auto start_pre = high_resolution_clock::now();
     auto L_y = compute_meaningful_extensions(msa, L, U);
     auto stop_pre = high_resolution_clock::now();
@@ -278,7 +284,7 @@ int main(int argc, char* argv[]) {
     if (allow_perfect_segments) {
             auto [p, p_cols] = compute_perfect_columns(msa);
             std::swap(p_cols, perfect_columns);
-            cout << "MSA contains " << p << " perfect columns" << endl;
+            cout << "MSA contains " << p << "/" << msa[0].size() << " perfect columns" << endl;
     }
     auto start_dp = high_resolution_clock::now();
     auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
@@ -295,13 +301,18 @@ int main(int argc, char* argv[]) {
 
        prseg_index_eds(msa, segments);
     }
-    //prseg_index_eds(msa,segments,filename + ".eds.txt");
+
     auto [eds, card, size] = segment_msa(filename, msa[0].size(), segments);
-    ofstream out(filename + ".gfa");
-    output_msa_info(msa.size(), msa[0].size(), out);
-    output_segmentation(segments, out);
-    output_block_info(eds, out);
-    output_block_graph(eds, out);
+    if (gfa_output) {
+        ofstream out(filename + ".gfa");
+        output_msa_info(msa.size(), msa[0].size(), out);
+        output_segmentation(segments, out);
+        output_block_info(eds, out);
+        output_block_graph(eds, out);
+    } else { // eds output
+        ofstream out(filename + ".eds");
+        output_eds(eds, out);
+    }
     cout << "Cardinality after gap removal: " << card << endl;
     cout << "Gap-aware size after gap removal: " << size << endl;
     return 0;

@@ -12,6 +12,9 @@ unzip -p input/e_coli_K-12_MG1655_dataset.zip \
 	> input/e_coli_K-12_MG1655.fasta
 $iqtree --alisim input/msa \
 	--root-seq input/e_coli_K-12_MG1655.fasta,NC_000913.3 \
-	--indel 0.01,0.01 -t input/tree.nwk \
+	--indel 0.01,0.01 \
+	--indel-size "POW{1.7/1000},POW{1.7/1000}" \
+	-t "RANDOM{yh/16}" \
+	-m "JC+I{0.95}" \
 	-af fasta \
 	--seed 302288

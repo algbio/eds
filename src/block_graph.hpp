@@ -178,5 +178,17 @@ namespace eds::block_graph {
             }
         }
     }
+    void output_eds(const block_graph &g, ofstream &out) {
+        for (auto &b : g.blocks) {
+            out << "{";
+            bool first = true;
+            for (auto &[label, _] : b) {
+                out << ((first) ? "" : ",") << label;
+                first = false;
+            }
+            out << "}";
+        }
+	out << "\n";
+    }
 } // namespace eds::block_graph
 #endif // BLOCK_GRAPH_HPP
