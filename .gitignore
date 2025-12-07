@@ -15,8 +15,8 @@ experiments/covid/input/covid19-100.fa
 experiments/covid/input/covid19-100-N.fa
 experiments/covid/output
 
-experiments/chr19/input/hr19_100.aligned.fa.xz.00
-experiments/chr19/input/hr19_100.aligned.fa.xz.02
-experiments/chr19/input/hr19_100.aligned.fa.xz.01
+experiments/chr19/input/chr19_100.aligned.fa.xz.00
+experiments/chr19/input/chr19_100.aligned.fa.xz.02
+experiments/chr19/input/chr19_100.aligned.fa.xz.01
 experiments/chr19/input/chr19_100.aligned.uppercase.fa
 experiments/chr19/output
