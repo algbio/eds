@@ -239,10 +239,11 @@ int main(int argc, char* argv[]) {
     seg_index L = 1;
     seg_index U = 10;
     bool allow_perfect_segments = false;
+    bool trivial_segmentation = false;
     bool gfa_output = false;
 
     if (argc<=1) {
-      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) gfa-output (default 0) verbose (default 0)" << endl;
+      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) trivial-segmentation (default 0) gfa-output (default 0) verbose (default 0)" << endl;
       return 0;
     }
 
@@ -252,68 +253,94 @@ int main(int argc, char* argv[]) {
     if (argc>3)
       allow_perfect_segments = atoi(argv[3]) > 0;
     if (argc>4)
-      gfa_output = atoi(argv[4]) > 0;
+      trivial_segmentation = atoi(argv[4]) > 0;
     if (argc>5)
-      verbose = atoi(argv[5]);
-    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
+      gfa_output = atoi(argv[5]) > 0;
+    if (argc>6)
+      verbose = atoi(argv[6]);
+    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", trivial-segmentation: " << ((trivial_segmentation) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
 
     auto msa = read_fasta(filename);
     if (msa.empty()) {
-        cerr << "MSA file is empty or not found.\n";
-        return 1;
+      cerr << "MSA file is empty or not found.\n";
+      return 1;
     } else {
-        cerr << "MSA[1.." << msa.size() << " ,1.." << msa[0].size() << "] read" << endl;
-    }
-    auto start_pre = high_resolution_clock::now();
-    auto L_y = compute_meaningful_extensions(msa, L, U);
-    auto stop_pre = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
-    cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
-    if (verbose) {
-        cout << "Meaningful left extensions and heights:\n";
-        for (seg_index y = 1; y < L_y.size(); ++y) {
-            if (L_y[y].empty()) continue;
-            cout << "y = " << y << ":\n";
-            for (size_t j = 0; j < L_y[y].size(); ++j) {
-                cout << "  ℓ: " << L_y[y][j].first << "   h: " << L_y[y][j].second << "\n";
-            }
-        }
+      cerr << "MSA[1.." << msa.size() << " ,1.." << msa[0].size() << "] read" << endl;
     }
 
-    vector<bool> perfect_columns = {};
-    if (allow_perfect_segments) {
-            auto [p, p_cols] = compute_perfect_columns(msa);
-            std::swap(p_cols, perfect_columns);
-            cout << "MSA contains " << p << "/" << msa[0].size() << " perfect columns" << endl;
-    }
-    auto start_dp = high_resolution_clock::now();
-    auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
-    auto stop_dp = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(stop_dp-start_dp);
-    cout << "DP took " << duration.count() << " milliseconds" << endl;
+    if (trivial_segmentation) {
+      vector<pair<seg_index, seg_index>> trivial;
+      trivial.reserve(msa[0].size());
+      for (seg_index i = 0; i < msa[0].size(); ++i) {
+        trivial.push_back({ i+1, i+1 });
+      }
+      auto [eds, card, size] = segment_msa(filename, msa[0].size(), trivial);
+      if (gfa_output) {
+          ofstream out(filename + ".gfa");
+          output_msa_info(msa.size(), msa[0].size(), out);
+          output_segmentation(trivial, out);
+          output_block_info(eds, out);
+          output_block_graph(eds, out);
+      } else { // eds output
+          ofstream out(filename + ".eds");
+          output_eds(eds, out);
+      }
+      cout << "Cardinality: " << card << endl;
+      cout << "Gap-aware size: " << size << endl;
+      return 0;
+    } else {
+      // mincard
+      auto start_pre = high_resolution_clock::now();
+      auto L_y = compute_meaningful_extensions(msa, L, U);
+      auto stop_pre = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
+      cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
+      if (verbose) {
+          cout << "Meaningful left extensions and heights:\n";
+          for (seg_index y = 1; y < L_y.size(); ++y) {
+              if (L_y[y].empty()) continue;
+              cout << "y = " << y << ":\n";
+              for (size_t j = 0; j < L_y[y].size(); ++j) {
+                  cout << "  ℓ: " << L_y[y][j].first << "   h: " << L_y[y][j].second << "\n";
+              }
+          }
+      }
 
-    cout << "Minimum segmentation cardinality: " << cost << endl;
-    if (verbose) {
-       cout << "Segments:\n";
-       for (auto [l, r] : segments)
-           cout << "[" << l << "," << r << "] ";
-       cout << "\n";
+      vector<bool> perfect_columns = {};
+      if (allow_perfect_segments) {
+              auto [p, p_cols] = compute_perfect_columns(msa);
+              std::swap(p_cols, perfect_columns);
+              cout << "MSA contains " << p << "/" << msa[0].size() << " perfect columns" << endl;
+      }
+      auto start_dp = high_resolution_clock::now();
+      auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
+      auto stop_dp = high_resolution_clock::now();
+      duration = duration_cast<milliseconds>(stop_dp-start_dp);
+      cout << "DP took " << duration.count() << " milliseconds" << endl;
 
-       prseg_index_eds(msa, segments);
-    }
+      cout << "Minimum segmentation cardinality: " << cost << endl;
+      if (verbose) {
+         cout << "Segments:\n";
+         for (auto [l, r] : segments)
+             cout << "[" << l << "," << r << "] ";
+         cout << "\n";
 
-    auto [eds, card, size] = segment_msa(filename, msa[0].size(), segments);
-    if (gfa_output) {
-        ofstream out(filename + ".gfa");
-        output_msa_info(msa.size(), msa[0].size(), out);
-        output_segmentation(segments, out);
-        output_block_info(eds, out);
-        output_block_graph(eds, out);
-    } else { // eds output
-        ofstream out(filename + ".eds");
-        output_eds(eds, out);
+         prseg_index_eds(msa, segments);
+      }
+
+      auto [eds, card, size] = segment_msa(filename, msa[0].size(), segments);
+      if (gfa_output) {
+          ofstream out(filename + ".gfa");
+          output_msa_info(msa.size(), msa[0].size(), out);
+          output_segmentation(segments, out);
+          output_block_info(eds, out);
+          output_block_graph(eds, out);
+      } else { // eds output
+          ofstream out(filename + ".eds");
+          output_eds(eds, out);
+      }
+      cout << "Cardinality after gap removal: " << card << endl;
+      cout << "Gap-aware size after gap removal: " << size << endl;
+      return 0;
     }
-    cout << "Cardinality after gap removal: " << card << endl;
-    cout << "Gap-aware size after gap removal: " << size << endl;
-    return 0;
 }

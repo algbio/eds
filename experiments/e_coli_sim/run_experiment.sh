@@ -13,6 +13,13 @@ mkdir output
 cd output
 ln -s $inputmsa msa.fa
 
+# mincard pc
+for U in 4 8 16 32 64
+do
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U 1
+	mv msa.fa.eds mincard_U${U}_perfectcols.eds
+done
+
 # mincard
 for U in 4 8 16 32 64
 do
@@ -20,12 +27,8 @@ do
 	mv msa.fa.eds mincard_U${U}.eds
 done
 
-# mincard pc
-for U in 4 8 16 32 64
-do
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U 1
-	mv msa.fa.eds mincard_U${U}_perfectcols.eds
-done
+# mincard trivial S^|||
+/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa 0 0 1
 
 # msatoeds heuristics
 for strat in trivial greedy double-greedy

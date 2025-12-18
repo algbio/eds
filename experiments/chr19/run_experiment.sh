@@ -15,20 +15,24 @@ cd output
 ln -s $inputmsa msa.fa
 
 # mincard
-for U in 4 8 16 32 64
+for U in 4 8 16
 do
 	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U
 	mv msa.fa.eds mincard_U${U}.eds
 done
 
 # mincard pc
-for U in 4 8 16 32 64
+for U in 4 8 16
 do
 	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U 1
 	mv msa.fa.eds mincard_U${U}_perfectcols.eds
 done
 
-# msatoeds heuristics
+# mincard trivial S^|||
+/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa 0 0 1
+
+exit
+# msatoeds heuristics, require >= 100GB RAM
 for strat in trivial greedy double-greedy
 do
 	echo "Strategy ${strat}"

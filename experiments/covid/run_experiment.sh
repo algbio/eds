@@ -27,6 +27,9 @@ do
 	mv msa.fa.eds mincard_U${U}_perfectcols.eds
 done
 
+# mincard trivial S^|||
+/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa 0 0 1
+
 # msatoeds heuristics
 for strat in trivial greedy double-greedy
 do

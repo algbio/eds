@@ -122,7 +122,7 @@ namespace eds::block_graph {
                     const unsigned long newid = nodes++;
                     blocks[i].insert({ label, newid });
                     card += 1;
-                    size += label.size();
+                    size += max(label.size(), 1LU);
                     node_to_block.insert({ newid, i });
                     adjacency_lists.insert({ newid, unordered_set<unsigned long>() });
                     if (prev != SEG_INDEX_MAX) {
