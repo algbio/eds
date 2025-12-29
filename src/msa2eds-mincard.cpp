@@ -242,6 +242,7 @@ int main(int argc, char* argv[]) {
     bool trivial_segmentation = false;
     bool gfa_output = false;
 
+    cout << "msa2eds-mincard version " << VERSION << endl;
     if (argc<=1) {
       cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) trivial-segmentation (default 0) gfa-output (default 0) verbose (default 0)" << endl;
       return 0;
