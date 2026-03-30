@@ -1,6 +1,7 @@
 msa2eds-mincard
 test/*.eds
 test/*.gfa
+test/*.fai
 
 experiments/e_coli_sim/input/e_coli_K-12_MG1655.fasta
 experiments/e_coli_sim/input/e_coli_K-12_MG1655_dataset.zip

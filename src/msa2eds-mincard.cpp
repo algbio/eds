@@ -11,6 +11,8 @@
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
+#include <htslib/sam.h> // faidx_t, FAI_CREATE, FAI_FASTA
+#include <htslib/faidx.h> // fai_load3_format
 
 using namespace std::chrono;
 using namespace std;
@@ -44,11 +46,8 @@ vector<string> read_fasta(const string& filename) {
 }
 
 vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
-    const vector<string>& msa, seg_index L, seg_index U)
+    const faidx_t *idx, const seg_index r, const seg_index c, const seg_index L, const seg_index U)
 {
-    seg_index r = msa.size();
-    seg_index c = msa[0].size();
-
     vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
@@ -65,7 +64,11 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
             unordered_set<string> unique_strings;
 
             for (seg_index i = 0; i < r; ++i) {
-                string s = msa[i].substr(start - 1, len);
+                hts_pos_t out_len;
+                char *s_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), start - 1, start - 1 + len - 1, &out_len);
+                string s(s_str);
+                free(s_str);
+                assert(s.length() == len);
                 s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps
                 unique_strings.insert(s);
             }
@@ -86,17 +89,21 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
 }
 
 pair<seg_index,vector<bool>> compute_perfect_columns(
-    const vector<string>& msa) {
-    seg_index r = msa.size();
-    seg_index c = msa[0].size();
+    const faidx_t *idx, const seg_index r, const seg_index c) {
     seg_index np = 0;
     assert(r > 0);
 
     vector<bool> perfect_columns(c + 1, true); // 1-indexed
     for (seg_index y = 1; y <= c; ++y) {
-        const char consensus = msa[0][y-1];
+        hts_pos_t out_len;
+        char *consensus_str = faidx_fetch_seq64(idx, faidx_iseq(idx, 0), y-1, y-1, &out_len);
+        const char consensus = consensus_str[0];
+        free(consensus_str);
         for (seg_index i = 2; i <= r; ++i) {
-            if (msa[i-1][y-1] != consensus) {
+            char *i_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), y-1, y-1, &out_len);
+            const char i_char = i_str[0];
+            free(i_str);
+            if (i_char != consensus) {
                 perfect_columns[y] = false;
                 np += 1;
                 break;
@@ -186,16 +193,20 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
 }
 
 // Prseg_index EDS from segmentation
-void prseg_index_eds(const vector<string>& msa, const vector<pair<seg_index, seg_index>>& segments, string out_filename = "") {
+void prseg_index_eds(const faidx_t *idx, const vector<pair<seg_index, seg_index>>& segments, string out_filename = "") {
     std::ofstream outFile;
+    const seg_index rows = faidx_nseq(idx);
     if (out_filename.size()==0) 
         cout << "Elastic Degenerate String (EDS):\n";
     else
        outFile.open(out_filename);
     for (const auto& [l, r] : segments) {
         set<string> unique_subs;
-        for (const auto& seq : msa) {
-            string sub = seq.substr(l - 1, r - l + 1);
+        for (seg_index i = 0; i < rows; ++i) {
+            hts_pos_t out_len;
+            char *sub_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), l - 1, r - 1, &out_len);
+            //string sub = seq.substr(l - 1, r - l + 1);
+            string sub(sub_str);
             sub.erase(remove(sub.begin(), sub.end(), '-'), sub.end()); // remove gaps
             unique_subs.insert(sub);
         }
@@ -219,12 +230,15 @@ void prseg_index_eds(const vector<string>& msa, const vector<pair<seg_index, seg
 }
 
 // Count the total cardinality of sets
-seg_index card_eds(const vector<string>& msa, const vector<pair<seg_index, seg_index>>& segments) {
+seg_index card_eds(const faidx_t *idx, const vector<pair<seg_index, seg_index>>& segments) {
+    const seg_index rows = faidx_nseq(idx);
     seg_index card = 0;
     for (const auto& [l, r] : segments) {
         set<string> unique_subs;
-        for (const auto& seq : msa) {
-            string sub = seq.substr(l - 1, r - l + 1);
+        for (seg_index i = 0; i < rows; ++i) {
+            hts_pos_t out_len;
+            char *sub_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), l - 1, r - 1, &out_len);
+            string sub(sub_str);
             sub.erase(remove(sub.begin(), sub.end(), '-'), sub.end()); // remove gaps
             unique_subs.insert(sub);
         }
@@ -261,24 +275,35 @@ int main(int argc, char* argv[]) {
       verbose = atoi(argv[6]);
     cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", trivial-segmentation: " << ((trivial_segmentation) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
 
-    auto msa = read_fasta(filename);
-    if (msa.empty()) {
-      cerr << "MSA file is empty or not found.\n";
+    faidx_t *idx = NULL;
+    if (!(idx = fai_load3_format(filename.c_str(), NULL, NULL, FAI_CREATE, FAI_FASTA))) {
+      cerr << "Failed to load/create index" << endl;
       return 1;
-    } else {
-      cerr << "MSA[1.." << msa.size() << " ,1.." << msa[0].size() << "] read" << endl;
     }
+    const int r = faidx_nseq(idx);
+    int c = -1;
+    for (int i = 0; i < r; i++) {
+      const char* seq_name = faidx_iseq(idx, i);
+      const hts_pos_t seq_len = faidx_seq_len64(idx, seq_name);
+      if (c == -1) {
+        c = seq_len;
+      } else if (seq_len != c) {
+        cerr << "MSA has rows of different length! (" << string(seq_name) << ")" << endl;
+        return 1;
+      }
+    }
+    cerr << "MSA[1.." << r << " ,1.." << c << "] read" << endl;
 
     if (trivial_segmentation) {
       vector<pair<seg_index, seg_index>> trivial;
-      trivial.reserve(msa[0].size());
-      for (seg_index i = 0; i < msa[0].size(); ++i) {
+      trivial.reserve(c);
+      for (seg_index i = 0; i < r; ++i) {
         trivial.push_back({ i+1, i+1 });
       }
-      auto [eds, card, size] = segment_msa(filename, msa[0].size(), trivial);
+      auto [eds, card, size] = segment_msa(filename, c, trivial);
       if (gfa_output) {
           ofstream out(filename + ".gfa");
-          output_msa_info(msa.size(), msa[0].size(), out);
+          output_msa_info(r, c, out);
           output_segmentation(trivial, out);
           output_block_info(eds, out);
           output_block_graph(eds, out);
@@ -292,7 +317,7 @@ int main(int argc, char* argv[]) {
     } else {
       // mincard
       auto start_pre = high_resolution_clock::now();
-      auto L_y = compute_meaningful_extensions(msa, L, U);
+      auto L_y = compute_meaningful_extensions(idx, r, c, L, U);
       auto stop_pre = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
       cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
@@ -309,12 +334,12 @@ int main(int argc, char* argv[]) {
 
       vector<bool> perfect_columns = {};
       if (allow_perfect_segments) {
-              auto [p, p_cols] = compute_perfect_columns(msa);
+              auto [p, p_cols] = compute_perfect_columns(idx, r, c);
               std::swap(p_cols, perfect_columns);
-              cout << "MSA contains " << p << "/" << msa[0].size() << " perfect columns" << endl;
+              cout << "MSA contains " << p << "/" << c << " perfect columns" << endl;
       }
       auto start_dp = high_resolution_clock::now();
-      auto [cost, segments] = segment_with_rmq(L_y, msa[0].size(), perfect_columns);
+      auto [cost, segments] = segment_with_rmq(L_y, c, perfect_columns);
       auto stop_dp = high_resolution_clock::now();
       duration = duration_cast<milliseconds>(stop_dp-start_dp);
       cout << "DP took " << duration.count() << " milliseconds" << endl;
@@ -326,13 +351,13 @@ int main(int argc, char* argv[]) {
              cout << "[" << l << "," << r << "] ";
          cout << "\n";
 
-         prseg_index_eds(msa, segments);
+         prseg_index_eds(idx, segments);
       }
 
-      auto [eds, card, size] = segment_msa(filename, msa[0].size(), segments);
+      auto [eds, card, size] = segment_msa(filename, c, segments);
       if (gfa_output) {
           ofstream out(filename + ".gfa");
-          output_msa_info(msa.size(), msa[0].size(), out);
+          output_msa_info(r, c, out);
           output_segmentation(segments, out);
           output_block_info(eds, out);
           output_block_graph(eds, out);
@@ -344,4 +369,6 @@ int main(int argc, char* argv[]) {
       cout << "Gap-aware size after gap removal: " << size << endl;
       return 0;
     }
+
+    fai_destroy(idx);
 }
