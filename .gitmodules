@@ -1,3 +1,6 @@
 [submodule "experiments/ext/junctions"]
 	path = experiments/ext/junctions
 	url = https://github.com/urbanslug/junctions
+[submodule "ext/htslib"]
+	path = ext/htslib
+	url = https://github.com/samtools/htslib
