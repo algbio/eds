@@ -6,7 +6,7 @@ HTSLIB_INCLUDE=ext/htslib
 HTSLIB_LIB=ext/htslib
 HTSLIB_FLAGS=-L $(HTSLIB_LIB) -lhts -Wl,-rpath,$(HTSLIB_LIB)
 
-msa2eds-mincard: src/msa2eds-mincard.cpp src/block_graph.hpp src/RMaxQTree.h src/RMaxQTree.cpp
+msa2eds-mincard: src/msa2eds-mincard.cpp src/block_graph.hpp src/RMaxQTree.h src/RMaxQTree.cpp src/msa_chunker.hpp
 	${CXX} $(CXX_FLAGS) -DVERSION="\"$(VERSION)\"" -o msa2eds-mincard src/msa2eds-mincard.cpp src/RMaxQTree.cpp -I $(HTSLIB_INCLUDE) $(HTSLIB_FLAGS)
 
 clean:

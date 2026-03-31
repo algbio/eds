@@ -11,12 +11,12 @@
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
-#include <htslib/sam.h> // faidx_t, FAI_CREATE, FAI_FASTA
-#include <htslib/faidx.h> // fai_load3_format
+#include "msa_chunker.hpp"
 
 using namespace std::chrono;
 using namespace std;
 using eds::block_graph::block_graph, eds::block_graph::segment_msa, eds::block_graph::output_msa_info, eds::block_graph::output_segmentation, eds::block_graph::output_block_info, eds::block_graph::output_block_graph, eds::block_graph::output_eds;
+using msa_chunker::msa_chunker, msa_chunker::msa_pos_t;
 
 bool verbose = false;
 typedef eds::block_graph::seg_index seg_index;
@@ -46,8 +46,12 @@ vector<string> read_fasta(const string& filename) {
 }
 
 vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
-    const faidx_t *idx, const seg_index r, const seg_index c, const seg_index L, const seg_index U)
-{
+    msa_chunker::msa_chunker &idx,
+    const seg_index r,
+    const seg_index c,
+    const seg_index L,
+    const seg_index U
+) {
     vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
@@ -64,12 +68,8 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
             unordered_set<string> unique_strings;
 
             for (seg_index i = 0; i < r; ++i) {
-                hts_pos_t out_len;
-                char *s_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), start - 1, start - 1 + len - 1, &out_len);
-                string s(s_str);
-                free(s_str);
-                assert(s.length() == len);
-                s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps
+                string s = idx.msa_substr(i, start - 1, len);
+                s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps, TODO check
                 unique_strings.insert(s);
             }
 
@@ -89,20 +89,15 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
 }
 
 pair<seg_index,vector<bool>> compute_perfect_columns(
-    const faidx_t *idx, const seg_index r, const seg_index c) {
+    msa_chunker::msa_chunker &idx, const seg_index r, const seg_index c) {
     seg_index np = 0;
     assert(r > 0);
 
     vector<bool> perfect_columns(c + 1, true); // 1-indexed
     for (seg_index y = 1; y <= c; ++y) {
-        hts_pos_t out_len;
-        char *consensus_str = faidx_fetch_seq64(idx, faidx_iseq(idx, 0), y-1, y-1, &out_len);
-        const char consensus = consensus_str[0];
-        free(consensus_str);
-        for (seg_index i = 2; i <= r; ++i) {
-            char *i_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), y-1, y-1, &out_len);
-            const char i_char = i_str[0];
-            free(i_str);
+        const char consensus = idx.msa_substr(0, y-1, 1)[0];
+        for (seg_index i = 1; i < r; ++i) {
+            const char i_char = idx.msa_substr(i, y-1, 1)[0];
             if (i_char != consensus) {
                 perfect_columns[y] = false;
                 np += 1;
@@ -193,24 +188,21 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
 }
 
 // Prseg_index EDS from segmentation
-void prseg_index_eds(const faidx_t *idx, const vector<pair<seg_index, seg_index>>& segments, string out_filename = "") {
+void prseg_index_eds(msa_chunker::msa_chunker &idx, const vector<pair<seg_index, seg_index>>& segments, string out_filename = "") {
     std::ofstream outFile;
-    const seg_index rows = faidx_nseq(idx);
-    if (out_filename.size()==0) 
+    const seg_index rows = idx.get_rows();
+    if (out_filename.size()==0)
         cout << "Elastic Degenerate String (EDS):\n";
     else
        outFile.open(out_filename);
     for (const auto& [l, r] : segments) {
         set<string> unique_subs;
         for (seg_index i = 0; i < rows; ++i) {
-            hts_pos_t out_len;
-            char *sub_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), l - 1, r - 1, &out_len);
-            //string sub = seq.substr(l - 1, r - l + 1);
-            string sub(sub_str);
+            string sub = idx.msa_substr(i, l - 1, r - l + 1);
             sub.erase(remove(sub.begin(), sub.end(), '-'), sub.end()); // remove gaps
             unique_subs.insert(sub);
         }
-        if (out_filename.size()==0) { 
+        if (out_filename.size()==0) {
             cout << "{ ";
             for (const auto& s : unique_subs)
                 cout << s << " ";
@@ -221,24 +213,22 @@ void prseg_index_eds(const faidx_t *idx, const vector<pair<seg_index, seg_index>
             for (const auto& s : unique_subs)
                 outFile << s << " ";
             outFile << "}";
-        }         
+        }
     }
-    if (out_filename.size()==0) 
+    if (out_filename.size()==0)
         cout << "\n";
     if (outFile)
         outFile.close();
 }
 
 // Count the total cardinality of sets
-seg_index card_eds(const faidx_t *idx, const vector<pair<seg_index, seg_index>>& segments) {
-    const seg_index rows = faidx_nseq(idx);
+seg_index card_eds(msa_chunker::msa_chunker &idx, const vector<pair<seg_index, seg_index>>& segments) {
+    const seg_index rows = idx.get_rows();
     seg_index card = 0;
     for (const auto& [l, r] : segments) {
         set<string> unique_subs;
         for (seg_index i = 0; i < rows; ++i) {
-            hts_pos_t out_len;
-            char *sub_str = faidx_fetch_seq64(idx, faidx_iseq(idx, i), l - 1, r - 1, &out_len);
-            string sub(sub_str);
+            string sub = idx.msa_substr(i, l - 1, r - l + 1);
             sub.erase(remove(sub.begin(), sub.end(), '-'), sub.end()); // remove gaps
             unique_subs.insert(sub);
         }
@@ -275,29 +265,15 @@ int main(int argc, char* argv[]) {
       verbose = atoi(argv[6]);
     cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", trivial-segmentation: " << ((trivial_segmentation) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
 
-    faidx_t *idx = NULL;
-    if (!(idx = fai_load3_format(filename.c_str(), NULL, NULL, FAI_CREATE, FAI_FASTA))) {
-      cerr << "Failed to load/create index" << endl;
-      return 1;
-    }
-    const int r = faidx_nseq(idx);
-    int c = -1;
-    for (int i = 0; i < r; i++) {
-      const char* seq_name = faidx_iseq(idx, i);
-      const hts_pos_t seq_len = faidx_seq_len64(idx, seq_name);
-      if (c == -1) {
-        c = seq_len;
-      } else if (seq_len != c) {
-        cerr << "MSA has rows of different length! (" << string(seq_name) << ")" << endl;
-        return 1;
-      }
-    }
+    msa_chunker::msa_chunker idx(filename, U);
+    const int r = idx.get_rows();
+    const int c = idx.get_cols();
     cerr << "MSA[1.." << r << " ,1.." << c << "] read" << endl;
 
     if (trivial_segmentation) {
       vector<pair<seg_index, seg_index>> trivial;
       trivial.reserve(c);
-      for (seg_index i = 0; i < r; ++i) {
+      for (seg_index i = 0; i < c; ++i) {
         trivial.push_back({ i+1, i+1 });
       }
       auto [eds, card, size] = segment_msa(filename, c, trivial);
@@ -369,6 +345,4 @@ int main(int argc, char* argv[]) {
       cout << "Gap-aware size after gap removal: " << size << endl;
       return 0;
     }
-
-    fai_destroy(idx);
 }

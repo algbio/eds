@@ -12,6 +12,5 @@ make
 ```
 
 ## todo
-- avoid accessing the input file a million times
 - QC on the edses in chr19 experiment
 - support bgzipped files
