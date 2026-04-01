@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <chrono>
 #include <limits>
+#include <tuple>
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
@@ -330,16 +331,15 @@ int main(int argc, char* argv[]) {
          prseg_index_eds(idx, segments);
       }
 
-      auto [eds, card, size] = segment_msa(filename, c, segments);
+      eds::block_graph::seg_size_t card, size;
       if (gfa_output) {
           ofstream out(filename + ".gfa");
-          output_msa_info(r, c, out);
-          output_segmentation(segments, out);
-          output_block_info(eds, out);
-          output_block_graph(eds, out);
+          tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, segments, out);
+          out.close();
       } else { // eds output
           ofstream out(filename + ".eds");
-          output_eds(eds, out);
+          tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, segments, out);
+          out.close();
       }
       cout << "Cardinality after gap removal: " << card << endl;
       cout << "Gap-aware size after gap removal: " << size << endl;

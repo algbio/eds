@@ -12,5 +12,6 @@ make
 ```
 
 ## todo
+- interleave meaningful extension computation with segmentation
 - QC on the edses in chr19 experiment
 - support bgzipped files

@@ -2,6 +2,9 @@
  * load a FASTA MSA with htslib into memory chunk by chunk, but the chunking
  *   is done automatically, hoping for a linear forward scan of the MSA
  */
+#ifndef MSA_CHUNKER_H
+#define MSA_CHUNKER_H
+
 #include <vector>
 #include <string>
 #include <cassert>
@@ -90,3 +93,4 @@ namespace msa_chunker {
       }
   };
 } // msa_chunker
+#endif
