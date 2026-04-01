@@ -12,6 +12,7 @@ make
 ```
 
 ## todo
-- interleave meaningful extension computation with segmentation
-- QC on the edses in chr19 experiment
+- use a command line parser
+- add option to preprocess meaningful extensions
 - support bgzipped files
+- QC on the edses in chr19 experiment
