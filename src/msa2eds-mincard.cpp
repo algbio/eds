@@ -46,7 +46,44 @@ vector<string> read_fasta(const string& filename) {
     return sequences;
 }
 
-vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
+vector<pair<seg_index, seg_index>> compute_meaningful_extensions(
+    msa_chunker::msa_chunker &idx,
+    const seg_index r,
+    const seg_index c,
+    const seg_index L,
+    const seg_index U,
+    const seg_index y
+) {
+    vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing
+    if (y < L) {
+        return L_y; // No extension possible
+    }
+
+    // Enforce ℓ_{y,1} = y - L + 1 down to ℓ_{y,d_y} > y - U
+    seg_index prev_height = -1;
+    for (seg_index len = L; len <= U && y - len + 1 >= 1; ++len) {
+        seg_index start = y - len + 1;
+        unordered_set<string> unique_strings;
+
+        for (seg_index i = 0; i < r; ++i) {
+            string s = idx.msa_substr(i, start - 1, len);
+            s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps, TODO check
+            unique_strings.insert(s);
+        }
+
+        seg_index height = unique_strings.size();
+        if (height != prev_height) {
+            L_y.emplace_back(start, height);
+            prev_height = height;
+        }
+    }
+
+    // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
+    L_y.emplace_back(max((seg_index)0, y - U), -1);
+
+    return L_y;
+}
+vector<vector<pair<seg_index, seg_index>>> compute_all_meaningful_extensions(
     msa_chunker::msa_chunker &idx,
     const seg_index r,
     const seg_index c,
@@ -56,34 +93,7 @@ vector<vector<pair<seg_index, seg_index>>> compute_meaningful_extensions(
     vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
-        if (y < L) {
-            continue;  // No extension possible
-        }
-
-        vector<pair<seg_index, seg_index>> current;
-
-        // Enforce ℓ_{y,1} = y - L + 1 down to ℓ_{y,d_y} > y - U
-        seg_index prev_height = -1;
-        for (seg_index len = L; len <= U && y - len + 1 >= 1; ++len) {
-            seg_index start = y - len + 1;
-            unordered_set<string> unique_strings;
-
-            for (seg_index i = 0; i < r; ++i) {
-                string s = idx.msa_substr(i, start - 1, len);
-                s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps, TODO check
-                unique_strings.insert(s);
-            }
-
-            seg_index height = unique_strings.size();
-            if (height != prev_height) {
-                current.emplace_back(start, height);
-                prev_height = height;
-            }
-        }
-
-        // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
-        current.emplace_back(max((seg_index)0, y - U), -1);
-        L_y[y] = current;
+        L_y[y] = compute_meaningful_extension(idx, r, c, L, U, y);
     }
 
     return L_y;
@@ -111,7 +121,8 @@ pair<seg_index,vector<bool>> compute_perfect_columns(
 
 const vector<bool> perfect_columns_dummy = {};
 pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
-    const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c, const vector<bool> &perfect_columns = perfect_columns_dummy)
+        msa_chunker::msa_chunker &idx, const seg_index r, const seg_index c, const int L, const int U, const vector<bool> &perfect_columns = perfect_columns_dummy)
+    //const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c, const vector<bool> &perfect_columns = perfect_columns_dummy)
 {
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
     vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());      // m[y] is the DP value: minimal number of strings
@@ -138,17 +149,18 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
     for (key_type y = 1; y <= c; ++y) {
         m[y] = numeric_limits<key_type>::max();
 
-        const auto& L = L_y[y];
+        //const auto& L = L_y[y];
+        const auto L_y = compute_meaningful_extensions(idx, r, c, L, U, y);
 
         // optimal solution using L_y
-        for (size_t j = 0; j + 1 < L.size(); ++j) {
-            key_type l = L[j + 1].first;
-            key_type r = L[j].first - 1;
+        for (size_t j = 0; j + 1 < L_y.size(); ++j) {
+            key_type l = L_y[j + 1].first;
+            key_type r = L_y[j].first - 1;
             if (l > r) continue;
 
             // query returns pair (index, value), but value is -m[index]
             auto [x, neg_mx] = rmq.query(l, r);
-            key_type candidate = L[j].second + m[x];
+            key_type candidate = L_y[j].second + m[x];
 
             if (candidate < m[y]) {
                 m[y] = candidate;
@@ -294,20 +306,20 @@ int main(int argc, char* argv[]) {
     } else {
       // mincard
       auto start_pre = high_resolution_clock::now();
-      auto L_y = compute_meaningful_extensions(idx, r, c, L, U);
-      auto stop_pre = high_resolution_clock::now();
-      auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
-      cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
-      if (verbose) {
-          cout << "Meaningful left extensions and heights:\n";
-          for (seg_index y = 1; y < L_y.size(); ++y) {
-              if (L_y[y].empty()) continue;
-              cout << "y = " << y << ":\n";
-              for (size_t j = 0; j < L_y[y].size(); ++j) {
-                  cout << "  ℓ: " << L_y[y][j].first << "   h: " << L_y[y][j].second << "\n";
-              }
-          }
-      }
+      //auto L_y = compute_all_meaningful_extensions(idx, r, c, L, U);
+      //auto stop_pre = high_resolution_clock::now();
+      //auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
+      //cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
+      //if (verbose) {
+      //    cout << "Meaningful left extensions and heights:\n";
+      //    for (seg_index y = 1; y < L_y.size(); ++y) {
+      //        if (L_y[y].empty()) continue;
+      //        cout << "y = " << y << ":\n";
+      //        for (size_t j = 0; j < L_y[y].size(); ++j) {
+      //            cout << "  ℓ: " << L_y[y][j].first << "   h: " << L_y[y][j].second << "\n";
+      //        }
+      //    }
+      //}
 
       vector<bool> perfect_columns = {};
       if (allow_perfect_segments) {
@@ -316,9 +328,9 @@ int main(int argc, char* argv[]) {
               cout << "MSA contains " << p << "/" << c << " perfect columns" << endl;
       }
       auto start_dp = high_resolution_clock::now();
-      auto [cost, segments] = segment_with_rmq(L_y, c, perfect_columns);
+      auto [cost, segments] = segment_with_rmq(idx, r, c, L, U, perfect_columns);
       auto stop_dp = high_resolution_clock::now();
-      duration = duration_cast<milliseconds>(stop_dp-start_dp);
+      auto duration = duration_cast<milliseconds>(stop_dp-start_dp);
       cout << "DP took " << duration.count() << " milliseconds" << endl;
 
       cout << "Minimum segmentation cardinality: " << cost << endl;
