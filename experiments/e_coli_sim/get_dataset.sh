@@ -17,4 +17,5 @@ $iqtree --alisim input/msa \
 	-t "RANDOM{yh/16}" \
 	-m "JC+I{0.95}" \
 	-af fasta \
-	--seed 302288
+	--seed 302288 \
+	-redo
