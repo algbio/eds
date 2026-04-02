@@ -255,7 +255,6 @@ namespace eds::block_graph {
             }
             last_block = std::move(block);
         }
-        out << "\n";
 
         return { card, size };
     }

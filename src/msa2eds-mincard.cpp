@@ -93,7 +93,7 @@ vector<vector<pair<seg_index, seg_index>>> compute_all_meaningful_extensions(
     vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
-        L_y[y] = compute_meaningful_extension(idx, r, c, L, U, y);
+        L_y[y] = compute_meaningful_extensions(idx, r, c, L, U, y);
     }
 
     return L_y;
@@ -289,16 +289,15 @@ int main(int argc, char* argv[]) {
       for (seg_index i = 0; i < c; ++i) {
         trivial.push_back({ i+1, i+1 });
       }
-      auto [eds, card, size] = segment_msa(filename, c, trivial);
+      eds::block_graph::seg_size_t card, size;
       if (gfa_output) {
           ofstream out(filename + ".gfa");
-          output_msa_info(r, c, out);
-          output_segmentation(trivial, out);
-          output_block_info(eds, out);
-          output_block_graph(eds, out);
+          tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, trivial, out);
+          out.close();
       } else { // eds output
           ofstream out(filename + ".eds");
-          output_eds(eds, out);
+          tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, trivial, out);
+          out.close();
       }
       cout << "Cardinality: " << card << endl;
       cout << "Gap-aware size: " << size << endl;
