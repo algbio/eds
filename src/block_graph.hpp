@@ -15,7 +15,7 @@ using std::unordered_map;
 using std::unordered_set;
 using std::vector;
 using std::string;
-using std::ifstream, std::ofstream;
+using std::ifstream, std::ostream, std::ofstream;
 using std::cerr, std::endl;
 using std::pair, std::tuple;
 using std::max;
@@ -153,21 +153,21 @@ namespace eds::block_graph {
         return { block_graph({ std::move(blocks), std::move(node_to_block), std::move(adjacency_lists) }), card, size };
     }
 
-    void output_msa_info(const long long m, const long long n, ofstream &out) {
-        out << "M\t" << m << "\t" << n << "\n";
+    void output_msa_info(const long long m, const long long n, ostream *out) {
+        *out << "M\t" << m << "\t" << n << "\n";
     }
-    void output_segmentation(const segmentation &S, ofstream &out) {
+    void output_segmentation(const segmentation &S, ostream *out) {
         // 0-indexed to 1-indexed, only starting cols (see xGFAspec.md)
-        out << "X";
+        *out << "X";
         for (seg_size_t i = 0; i < S.size() - 1; i++)
-            out << "\t" << S[i].first;
-        out << "\n";
+            *out << "\t" << S[i].first;
+        *out << "\n";
     }
-    void output_block_info(const block_graph &g, ofstream &out) {
-        out << "B";
+    void output_block_info(const block_graph &g, ostream *out) {
+        *out << "B";
         for (auto &b : g.blocks)
-            out << "\t" << b.size();
-        out << "\n";
+            *out << "\t" << b.size();
+        *out << "\n";
     }
     /* TODO: rename vertices? */
     void output_block_graph(const block_graph &g, ofstream &out) {
@@ -202,7 +202,7 @@ namespace eds::block_graph {
             seg_index rows,
             seg_index cols,
             const vector<pair<seg_index, seg_index>> &S,
-            ofstream &out) {
+            ostream *out) {
         unordered_map<string,unsigned long> block, last_block;
         unordered_map<unsigned long,unordered_set<unsigned long>> adjacency_lists;
         seg_index nodes = 0, card = 0, size = 0; // gap-aware size
@@ -246,11 +246,11 @@ namespace eds::block_graph {
 
             // print node labels and edges to this block
             for (auto &[label, node] : block) {
-                out << "S\t" << node << "\t" << ((label == "") ? "*" : label) << "\n";
+                *out << "S\t" << node << "\t" << ((label == "") ? "*" : label) << "\n";
             }
             for (auto &[inneighbor, list] : adjacency_lists) {
                 for (auto &outneighbor : list) {
-                    out << "L\t" << inneighbor << "\t+\t" << outneighbor << "\t+\t0M" << "\n";
+                    *out << "L\t" << inneighbor << "\t+\t" << outneighbor << "\t+\t0M" << "\n";
                 }
             }
             last_block = std::move(block);
@@ -263,7 +263,7 @@ namespace eds::block_graph {
             seg_index rows,
             seg_index cols,
             const vector<pair<seg_index, seg_index>> &S,
-            ofstream &out) {
+            ostream *out) {
         seg_index nodes = 0, card = 0, size = 0; // gap-aware size
         std::set<string> block;
 
@@ -279,16 +279,42 @@ namespace eds::block_graph {
 
             // print block
             card += block.size();
-            out << "{";
+            *out << "{";
             bool first = true;
             for (auto &label : block) {
                 size += max(label.size(), 1LU);
-                out << ((first) ? "" : ",") << label;
+                *out << ((first) ? "" : ",") << label;
                 first = false;
             }
-            out << "}";
+            *out << "}";
         }
-        out << "\n";
+        *out << "\n";
+        return { card, size };
+    }
+    pair<seg_index,seg_index> segment_stream_no_output( // TODO refactor this
+            msa_chunker::msa_chunker &idx,
+            seg_index rows,
+            seg_index cols,
+            const vector<pair<seg_index, seg_index>> &S
+            ) {
+        seg_index nodes = 0, card = 0, size = 0; // gap-aware size
+        std::set<string> block;
+
+        for (seg_size_t i = 0; i < S.size(); i++) {
+            assert(S[i].first <= S[i].second);
+            block.clear();
+
+            for (seg_size_t r = 0; r < rows; r++) {
+                string label = idx.msa_substr(r, S[i].first - 1, S[i].second - S[i].first + 1);
+                label.erase(std::remove(label.begin(), label.end(), GAP_CHARACTER), label.end()); // remove gaps
+                block.insert(label);
+            }
+
+            card += block.size();
+            for (auto &label : block) {
+                size += max(label.size(), 1LU);
+            }
+        }
         return { card, size };
     }
 } // namespace eds::block_graph

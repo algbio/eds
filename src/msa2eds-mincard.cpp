@@ -9,10 +9,12 @@
 #include <chrono>
 #include <limits>
 #include <tuple>
+#include <iomanip>
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
 #include "msa_chunker.hpp"
+#include "CLI11.hpp"
 
 using namespace std::chrono;
 using namespace std;
@@ -52,7 +54,8 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions(
     const seg_index c,
     const seg_index L,
     const seg_index U,
-    const seg_index y
+    const seg_index y,
+    const bool gaps_as_symbols
 ) {
     vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing
     if (y < L) {
@@ -67,7 +70,8 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions(
 
         for (seg_index i = 0; i < r; ++i) {
             string s = idx.msa_substr(i, start - 1, len);
-            s.erase(remove(s.begin(), s.end(), '-'), s.end());  // remove gaps, TODO check
+            if (!gaps_as_symbols)
+              s.erase(remove(s.begin(), s.end(), '-'), s.end());
             unique_strings.insert(s);
         }
 
@@ -88,12 +92,13 @@ vector<vector<pair<seg_index, seg_index>>> compute_all_meaningful_extensions(
     const seg_index r,
     const seg_index c,
     const seg_index L,
-    const seg_index U
+    const seg_index U,
+    const bool gaps_as_symbols
 ) {
     vector<vector<pair<seg_index, seg_index>>> L_y(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
-        L_y[y] = compute_meaningful_extensions(idx, r, c, L, U, y);
+        L_y[y] = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
     }
 
     return L_y;
@@ -121,9 +126,14 @@ pair<seg_index,vector<bool>> compute_perfect_columns(
 
 const vector<bool> perfect_columns_dummy = {};
 pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
-        msa_chunker::msa_chunker &idx, const seg_index r, const seg_index c, const int L, const int U, const vector<bool> &perfect_columns = perfect_columns_dummy)
-    //const vector<vector<pair<seg_index, seg_index>>>& L_y, seg_index c, const vector<bool> &perfect_columns = perfect_columns_dummy)
-{
+        msa_chunker::msa_chunker &idx,
+        const seg_index r,
+        const seg_index c,
+        const int L,
+        const int U,
+        const bool gaps_as_symbols,
+        const vector<bool> &perfect_columns = perfect_columns_dummy
+) {
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
     vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());      // m[y] is the DP value: minimal number of strings
     vector<seg_index> mneg(c + 1, numeric_limits<seg_index>::min());  // store -m[y] for max-query simulation
@@ -150,7 +160,7 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
         m[y] = numeric_limits<key_type>::max();
 
         //const auto& L = L_y[y];
-        const auto L_y = compute_meaningful_extensions(idx, r, c, L, U, y);
+        const auto L_y = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
 
         // optimal solution using L_y
         for (size_t j = 0; j + 1 < L_y.size(); ++j) {
@@ -250,61 +260,159 @@ seg_index card_eds(msa_chunker::msa_chunker &idx, const vector<pair<seg_index, s
     return card;
 }
 
-// Main function
 int main(int argc, char* argv[]) {
-    string filename = "example.fasta";
-    seg_index L = 1;
-    seg_index U = 10;
-    bool allow_perfect_segments = false;
-    bool trivial_segmentation = false;
-    bool gfa_output = false;
+    CLI::App app{"msa2eds-mincard version " + string(VERSION) + " — build Elastic Degenerate Strings (EDSes) from multiple sequence alignments in FASTA format"};
+    argv = app.ensure_utf8(argv);
 
-    cout << "msa2eds-mincard version " << VERSION << endl;
-    if (argc<=1) {
-      cout << "Syntax: " << string(argv[0]) << " msa.fasta segment-length-upper-bound (default " << U << ") allow-perfect-segments (default 0) trivial-segmentation (default 0) gfa-output (default 0) verbose (default 0)" << endl;
-      return 0;
+    string inputfile;
+    app.add_option("msa.fasta", inputfile, "Input MSA (FASTA format)")
+      ->required();
+
+    string outputedsfile;
+    app.add_option("-o,--output-eds", outputedsfile, "Output file for the elastic degenerate string (EDS format)")
+      ->default_val("");
+
+    string outputgfafile;
+    app.add_option("-g,--output-gfa", outputgfafile, "Output file for the corresponding block graph (xGFA format, not recommended with --perfect-segments)")
+      ->default_val("");
+
+    seg_index L;
+    CLI::Option *Lopt = app.add_option("-L,--min-segment-length", L, "Minimum segment length")
+      ->default_val(1)
+      ->expected(1, msa_chunker::MAX_CHUNK_COLS);
+
+    seg_index U;
+    CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length")
+      ->default_val(31)
+      ->expected(1, msa_chunker::MAX_CHUNK_COLS);
+
+    bool allow_perfect_segments = false;
+    app.add_flag("-p,--perfect-segments", allow_perfect_segments, "In normal mode, additionally consider perfect segments of any length (recommended). With --trivial-vertical and --trivial-horizontal, use the maximal perfect segments and the trivial strategy in-between.");
+
+    bool trivial_segmentation = false;
+    CLI::Option *tsopt = app.add_flag("-t,--trivial-vertical", trivial_segmentation, "Use trivial S^¦¦¦ segmentation (every column becomes an ED word)")
+      ->excludes(Lopt)->excludes(Uopt);
+
+    bool no_segmentation = false;
+    CLI::Option *nsopt = app.add_flag("-n,--trivial-horizontal", no_segmentation, "Use trivial S^≡ segmentation (no segmentation)")
+      ->excludes(Lopt)->excludes(Uopt)->excludes(tsopt);
+
+    bool gaps_as_symbols = false;
+    app.add_flag("--gaps-as-symbols", gaps_as_symbols, "In preprocessing the MSA, consider gaps '-' as normal symbols")
+      ->excludes(tsopt)->excludes(nsopt);
+
+    //bool verbose = false;
+    //app.add_flag("-v,--verbose", verbose, "Print running times and more stats");
+
+    try {
+      app.parse(argc, argv);
+    } catch (const CLI::ParseError &e) {
+      return app.exit(e);
     }
 
-    filename = string(argv[1]);
-    if (argc>2)
-      U = atoi(argv[2]);
-    if (argc>3)
-      allow_perfect_segments = atoi(argv[3]) > 0;
-    if (argc>4)
-      trivial_segmentation = atoi(argv[4]) > 0;
-    if (argc>5)
-      gfa_output = atoi(argv[5]) > 0;
-    if (argc>6)
-      verbose = atoi(argv[6]);
-    cout << "Input file: " << filename << ", upper bound: " << U << ", allow-perfect-segments: " << ((allow_perfect_segments) ? "true" : "false") << ", trivial-segmentation: " << ((trivial_segmentation) ? "true" : "false") << ", gfa-output: " << ((gfa_output) ? "true" : "false") << ", verbose: " << ((verbose) ? "true" : "false") << endl;
-
-    msa_chunker::msa_chunker idx(filename, U);
+    msa_chunker::msa_chunker idx(inputfile, U);
     const int r = idx.get_rows();
     const int c = idx.get_cols();
-    cerr << "MSA[1.." << r << " ,1.." << c << "] read" << endl;
+    cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
 
+    vector<bool> perfect_columns = {};
+    if (allow_perfect_segments) {
+      seg_index p;
+      tie(p, perfect_columns) = compute_perfect_columns(idx, r, c);
+      cout << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" << endl;
+    }
+
+    vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
     if (trivial_segmentation) {
-      vector<pair<seg_index, seg_index>> trivial;
-      trivial.reserve(c);
-      for (seg_index i = 0; i < c; ++i) {
-        trivial.push_back({ i+1, i+1 });
+      segmentation.reserve(c);
+      for (seg_index i = 1; i <= c; ++i) {
+        seg_index j = i;
+        if (allow_perfect_segments and perfect_columns[j]) {
+          while (perfect_columns[j]) 
+            j += 1;
+          j -= 1;
+        }
+        segmentation.push_back({ i, j });
+        i = j;
       }
-      eds::block_graph::seg_size_t card, size;
-      if (gfa_output) {
-          ofstream out(filename + ".gfa");
-          tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, trivial, out);
-          out.close();
-      } else { // eds output
-          ofstream out(filename + ".eds");
-          tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, trivial, out);
-          out.close();
+    } else if (no_segmentation) {
+      cerr << "Computing the S^≡ segmentation..." << flush;
+      if (!allow_perfect_segments) {
+        segmentation.push_back({ 1, c });
+      } else {
+        for (seg_index i = 1; i <= c; ++i) {
+          seg_index j = i;
+          bool start = perfect_columns[j];
+          while (j <= c and perfect_columns[j] == start) {
+            j += 1;
+          }
+          j -= 1;
+          segmentation.push_back({ i, j });
+          i = j;
+        }
       }
-      cout << "Cardinality: " << card << endl;
-      cout << "Gap-aware size: " << size << endl;
-      return 0;
+      cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
     } else {
+      cerr << "Computing the minimum-cardinality segmentation..." << flush;
+      auto start_dp = high_resolution_clock::now();
+      seg_index mincard; //?
+      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, perfect_columns);
+      auto stop_dp = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop_dp-start_dp);
+      //cout << "DP took " << duration.count() << " milliseconds" << endl;
+
+      cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << endl;
+      //if (verbose) {
+      //   cout << "Segments:\n";
+      //   for (auto [l, r] : segmentation)
+      //       cout << "[" << l << "," << r << "] ";
+      //   cout << "\n";
+
+      //   prseg_index_eds(idx, segmentation);
+      //}
+
+    }
+    eds::block_graph::seg_size_t card, size;
+    if (outputgfafile != "") {
+      ostream *out;
+      ofstream outfile;
+      if (outputgfafile == "-") {
+        cerr << "Streaming the block graph to stdout..." << flush;
+        out = &cout;
+      } else {
+        cerr << "Streaming the block graph to \"" << outputgfafile << "\"..." << flush;
+        outfile = ofstream(outputgfafile);
+        out = &outfile;
+      }
+      tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, segmentation, out);
+      outfile.close();
+      cerr << " done:";
+    }
+    if (outputedsfile != "") {
+      ostream *out;
+      ofstream outfile;
+      if (outputedsfile == "-") {
+        cerr << "Streaming the EDS to stdout..." << flush;
+        out = &cout;
+      } else {
+        cerr << "Streaming the EDS to \"" << outputedsfile << "\"..." << flush;
+        outfile = ofstream(outputedsfile);
+        out = &outfile;
+      }
+      tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, segmentation, out);
+      outfile.close();
+      cerr << " done:";
+    }
+    if (outputgfafile == "" and outputedsfile == "") {
+      cerr << "Computing the EDS stats (no output selected)..." << flush;
+      tie(card, size) = eds::block_graph::segment_stream_no_output(idx, r, c, segmentation);
+      cerr << " done:";
+    }
+
+    cerr << " " << card << " cardinality, " << size << " gap-aware size" << endl;
+    return 0;
       // mincard
-      auto start_pre = high_resolution_clock::now();
+      //auto start_pre = high_resolution_clock::now();
       //auto L_y = compute_all_meaningful_extensions(idx, r, c, L, U);
       //auto stop_pre = high_resolution_clock::now();
       //auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
@@ -319,41 +427,4 @@ int main(int argc, char* argv[]) {
       //        }
       //    }
       //}
-
-      vector<bool> perfect_columns = {};
-      if (allow_perfect_segments) {
-              auto [p, p_cols] = compute_perfect_columns(idx, r, c);
-              std::swap(p_cols, perfect_columns);
-              cout << "MSA contains " << p << "/" << c << " perfect columns" << endl;
-      }
-      auto start_dp = high_resolution_clock::now();
-      auto [cost, segments] = segment_with_rmq(idx, r, c, L, U, perfect_columns);
-      auto stop_dp = high_resolution_clock::now();
-      auto duration = duration_cast<milliseconds>(stop_dp-start_dp);
-      cout << "DP took " << duration.count() << " milliseconds" << endl;
-
-      cout << "Minimum segmentation cardinality: " << cost << endl;
-      if (verbose) {
-         cout << "Segments:\n";
-         for (auto [l, r] : segments)
-             cout << "[" << l << "," << r << "] ";
-         cout << "\n";
-
-         prseg_index_eds(idx, segments);
-      }
-
-      eds::block_graph::seg_size_t card, size;
-      if (gfa_output) {
-          ofstream out(filename + ".gfa");
-          tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, segments, out);
-          out.close();
-      } else { // eds output
-          ofstream out(filename + ".eds");
-          tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, segments, out);
-          out.close();
-      }
-      cout << "Cardinality after gap removal: " << card << endl;
-      cout << "Gap-aware size after gap removal: " << size << endl;
-      return 0;
-    }
 }
