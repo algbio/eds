@@ -11,18 +11,19 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>
+#include <filesystem>
 
 #include <htslib/sam.h>
 #include <htslib/faidx.h>
 
-#define MAX_CHUNK_COLS 131072
-
 using std::vector;
 using std::string;
-using std::cerr, std::endl;
+using std::cerr, std::endl, std::flush;
 using std::min, std::max;
+using std::filesystem::path, std::filesystem::exists, std::filesystem::last_write_time, std::filesystem::remove;
 
 namespace msa_chunker {
+  constexpr int MAX_CHUNK_COLS = 131072;
   typedef hts_pos_t msa_pos_t;
   class msa_chunker {
     private:
@@ -56,10 +57,33 @@ namespace msa_chunker {
       msa_chunker() = delete;
       msa_chunker(const string &fastapath, const int max_qlen) {
         max_query_length = max_qlen;
-        if (!(idx = fai_load3_format(fastapath.c_str(), NULL, NULL, FAI_CREATE, FAI_FASTA))) {
-          cerr << "Failed to load/create index" << endl;
+        path fastap(fastapath);
+        path fastaindex(fastapath + ".fai");
+
+        if (!exists(fastaindex)) {
+          cerr << "Index " << fastaindex << " not found, generating the index..." << flush;
+          if (fai_build3(fastap.c_str(), (fastapath + ".fai").c_str(), NULL) == -1) {
+            cerr << "\nERROR: failed to create index" << endl;
+            exit(1);
+          }
+          cerr << " done." << endl;
+        } else if (last_write_time(fastaindex) < last_write_time(fastap)) {
+          cerr << "Index " << fastaindex << " is older than MSA, regenerating the index..." << flush;
+          remove(fastaindex);
+          if (fai_build3(fastap.c_str(), (fastapath + ".fai").c_str(), NULL) == -1) {
+            cerr << "\nERROR: failed to create index" << endl;
+            exit(1);
+          }
+          cerr << " done." << endl;
+        } else {
+          cerr << "Index " << fastaindex << " found" << endl;
+        }
+        assert(exists(fastaindex));
+        if (!(idx = fai_load3(fastap.c_str(), fastaindex.c_str(), NULL, FAI_NONE))) {
+          cerr << "\nERROR: failed to create index" << endl;
           exit(1);
         }
+
         rows = faidx_nseq(idx);
         int c = -1;
         for (int i = 0; i < rows; i++) {
@@ -68,7 +92,7 @@ namespace msa_chunker {
           if (c == -1) {
             c = seq_len;
           } else if (seq_len != c) {
-            cerr << "MSA has rows of different length! (" << string(seq_name) << ")" << endl;
+            cerr << "ERROR: MSA has rows of different length! (" << string(seq_name) << ")" << endl;
             exit(1);
           }
         }

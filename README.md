@@ -12,7 +12,8 @@ make
 ```
 
 ## todo
-- use a command line parser
 - add option to preprocess meaningful extensions
+- add verbose option logging times
+- fix tests
 - support bgzipped files
 - QC on the edses in chr19 experiment
