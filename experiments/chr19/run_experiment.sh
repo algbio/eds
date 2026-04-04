@@ -17,22 +17,23 @@ ln -s $inputmsa msa.fa
 # mincard
 for U in 4 8 16
 do
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U
-	mv msa.fa.eds mincard_U${U}.eds
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -U $U -o mincard_U${U}.eds
 done
 
-# mincard pc
+# mincard with perfect segments
 for U in 4 8 16
 do
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa $U 1
-	mv msa.fa.eds mincard_U${U}_perfectcols.eds
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -U $U --perfect-segments -o mincard_U${U}_p.eds
 done
 
 # mincard trivial S^|||
-/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa 0 0 1
+/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa --trivial-vertical -o mincard_t.eds
+
+# mincard trivial S^≡ with perfect segments
+/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa --trivial-horizontal --perfect-segments -o mincard_np.eds
 
 exit
-# msatoeds heuristics, require >= 100GB RAM
+# msatoeds heuristics, they require >= 100GB RAM
 for strat in trivial greedy double-greedy
 do
 	echo "Strategy ${strat}"

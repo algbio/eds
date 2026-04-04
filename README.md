@@ -5,7 +5,7 @@ git clone https://github.com/algbio/eds && cd eds
 git submodule update --init --recursive ext/htslib
 (cd ext/htslib && autoreconf -i && ./configure && make -j)
 ```
-Otherwise, if you install `htslib` some other way (for example from its [website](https://www.htslib.org/download/)), change variables `X` and `Y` in `Makefile`. Finally, compile `msa2esd-mincard` and test it with
+Otherwise, if you install HTSlib some other way (for example from its [website](https://www.htslib.org/download/)), change variables `HTSLIB_INCLUDE` and `HTSLIB_LIB` in `Makefile`. Finally, compile `msa2esd-mincard` and test it with
 ```sh
 make
 ./msa2eds-mincard test/example.fasta
@@ -14,6 +14,6 @@ make
 ## todo
 - add option to preprocess meaningful extensions
 - add verbose option logging times
-- fix tests
 - support bgzipped files
+- speed up meaningful extension computation
 - QC on the edses in chr19 experiment
