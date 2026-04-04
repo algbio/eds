@@ -324,6 +324,7 @@ int main(int argc, char* argv[]) {
 
     vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
     if (trivial_segmentation) {
+      cerr << "Computing the S^¦¦¦ segmentation..." << flush;
       segmentation.reserve(c);
       for (seg_index i = 1; i <= c; ++i) {
         seg_index j = i;
@@ -335,6 +336,7 @@ int main(int argc, char* argv[]) {
         segmentation.push_back({ i, j });
         i = j;
       }
+      cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
     } else if (no_segmentation) {
       cerr << "Computing the S^≡ segmentation..." << flush;
       if (!allow_perfect_segments) {
@@ -353,6 +355,7 @@ int main(int argc, char* argv[]) {
       }
       cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
     } else {
+      cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
       cerr << "Computing the minimum-cardinality segmentation..." << flush;
       auto start_dp = high_resolution_clock::now();
       seg_index mincard; //?
