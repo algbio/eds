@@ -8,12 +8,10 @@ git submodule update --init --recursive ext/htslib
 Otherwise, if you install HTSlib some other way (for example from its [website](https://www.htslib.org/download/)), change variables `HTSLIB_INCLUDE` and `HTSLIB_LIB` in `Makefile`. Finally, compile `msa2esd-mincard` and test it with
 ```sh
 make
-./msa2eds-mincard test/example.fasta
+./msa2eds-mincard test/msa.fa -o test/msa.eds
 ```
 
 ## todo
-- add option to preprocess meaningful extensions
-- add verbose option logging times
 - support bgzipped files
 - speed up meaningful extension computation
 - QC on the edses in chr19 experiment
