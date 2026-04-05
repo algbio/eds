@@ -132,6 +132,7 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
         const int L,
         const int U,
         const bool gaps_as_symbols,
+        const vector<vector<pair<seg_index, seg_index>>> &L_y,
         const vector<bool> &perfect_columns = perfect_columns_dummy
 ) {
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
@@ -160,17 +161,24 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
         m[y] = numeric_limits<key_type>::max();
 
         //const auto& L = L_y[y];
-        const auto L_y = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
+        const vector<pair<seg_index, seg_index>> *L_yy;
+        vector<pair<seg_index, seg_index>> L_yy_on_the_fly;
+        if (L_y.size() > 0) {
+          L_yy = &(*(L_y.begin() + y));
+        } else {
+          L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
+          L_yy = &L_yy_on_the_fly;
+        }
 
-        // optimal solution using L_y
-        for (size_t j = 0; j + 1 < L_y.size(); ++j) {
-            key_type l = L_y[j + 1].first;
-            key_type r = L_y[j].first - 1;
+        // optimal solution using L_yy
+        for (size_t j = 0; j + 1 < L_yy->size(); ++j) {
+            key_type l = (*L_yy)[j + 1].first;
+            key_type r = (*L_yy)[j].first - 1;
             if (l > r) continue;
 
             // query returns pair (index, value), but value is -m[index]
             auto [x, neg_mx] = rmq.query(l, r);
-            key_type candidate = L_y[j].second + m[x];
+            key_type candidate = (*L_yy)[j].second + m[x];
 
             if (candidate < m[y]) {
                 m[y] = candidate;
@@ -301,8 +309,12 @@ int main(int argc, char* argv[]) {
     app.add_flag("--gaps-as-symbols", gaps_as_symbols, "In preprocessing the MSA, consider gaps '-' as normal symbols")
       ->excludes(tsopt)->excludes(nsopt);
 
-    //bool verbose = false;
-    //app.add_flag("-v,--verbose", verbose, "Print running times and more stats");
+    bool preprocess = false;
+    app.add_flag("--preprocess", preprocess, "Compute all meaningful extensions before segmenting")
+      ->excludes(tsopt)->excludes(nsopt);
+
+    bool verbose = false;
+    app.add_flag("-v,--verbose", verbose, "Print running times");
 
     try {
       app.parse(argc, argv);
@@ -318,8 +330,11 @@ int main(int argc, char* argv[]) {
     vector<bool> perfect_columns = {};
     if (allow_perfect_segments) {
       seg_index p;
+      auto start = high_resolution_clock::now();
       tie(p, perfect_columns) = compute_perfect_columns(idx, r, c);
-      cout << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" << endl;
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
+      cout << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" <<((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
 
     vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
@@ -356,25 +371,26 @@ int main(int argc, char* argv[]) {
       cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
     } else {
       cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
+
+      vector<vector<pair<seg_index, seg_index>>> L_y;
+      if (preprocess) {
+	      cerr << "Computing the meaningful extensions..." << flush;
+	      auto start = high_resolution_clock::now();
+	      L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols);
+	      auto stop = high_resolution_clock::now();
+	      auto duration = duration_cast<milliseconds>(stop - start);
+	      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      }
+
       cerr << "Computing the minimum-cardinality segmentation..." << flush;
-      auto start_dp = high_resolution_clock::now();
-      seg_index mincard; //?
-      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, perfect_columns);
-      auto stop_dp = high_resolution_clock::now();
-      auto duration = duration_cast<milliseconds>(stop_dp-start_dp);
-      //cout << "DP took " << duration.count() << " milliseconds" << endl;
-
-      cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << endl;
-      //if (verbose) {
-      //   cout << "Segments:\n";
-      //   for (auto [l, r] : segmentation)
-      //       cout << "[" << l << "," << r << "] ";
-      //   cout << "\n";
-
-      //   prseg_index_eds(idx, segmentation);
-      //}
-
+      auto start = high_resolution_clock::now();
+      seg_index mincard;
+      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, L_y, perfect_columns);
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
+      cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
+
     eds::block_graph::seg_size_t card, size;
     if (outputgfafile != "") {
       ostream *out;
@@ -387,9 +403,12 @@ int main(int argc, char* argv[]) {
         outfile = ofstream(outputgfafile);
         out = &outfile;
       }
+      auto start = high_resolution_clock::now();
       tie(card, size) = eds::block_graph::segment_stream_gfa(idx, r, c, segmentation, out);
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done:";
+      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
     }
     if (outputedsfile != "") {
       ostream *out;
@@ -402,32 +421,22 @@ int main(int argc, char* argv[]) {
         outfile = ofstream(outputedsfile);
         out = &outfile;
       }
+      auto start = high_resolution_clock::now();
       tie(card, size) = eds::block_graph::segment_stream_eds(idx, r, c, segmentation, out);
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done:";
+      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
     }
     if (outputgfafile == "" and outputedsfile == "") {
       cerr << "Computing the EDS stats (no output selected)..." << flush;
+      auto start = high_resolution_clock::now();
       tie(card, size) = eds::block_graph::segment_stream_no_output(idx, r, c, segmentation);
-      cerr << " done:";
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
+      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
     }
 
     cerr << " " << card << " cardinality, " << size << " gap-aware size" << endl;
     return 0;
-      // mincard
-      //auto start_pre = high_resolution_clock::now();
-      //auto L_y = compute_all_meaningful_extensions(idx, r, c, L, U);
-      //auto stop_pre = high_resolution_clock::now();
-      //auto duration = duration_cast<milliseconds>(stop_pre-start_pre);
-      //cout << "Preprocessing took " << duration.count() << " milliseconds" << endl;
-      //if (verbose) {
-      //    cout << "Meaningful left extensions and heights:\n";
-      //    for (seg_index y = 1; y < L_y.size(); ++y) {
-      //        if (L_y[y].empty()) continue;
-      //        cout << "y = " << y << ":\n";
-      //        for (size_t j = 0; j < L_y[y].size(); ++j) {
-      //            cout << "  ℓ: " << L_y[y][j].first << "   h: " << L_y[y][j].second << "\n";
-      //        }
-      //    }
-      //}
 }
