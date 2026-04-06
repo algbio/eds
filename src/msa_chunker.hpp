@@ -15,6 +15,7 @@
 
 #include <htslib/sam.h>
 #include <htslib/faidx.h>
+#include <htslib/bgzf.h>
 
 using std::vector;
 using std::string;
@@ -59,27 +60,40 @@ namespace msa_chunker {
         max_query_length = max_qlen;
         path fastap(fastapath);
         path fastaindex(fastapath + ".fai");
+        path gzip_index(fastapath + ".gzi");
+        bool compressed = false;
+        {
+          BGZF *bgzf = bgzf_open(fastap.c_str(), "r");
+          if (bgzf->is_compressed) {
+            compressed = true;
+          }
+          bgzf_close(bgzf);
+        }
 
-        if (!exists(fastaindex)) {
-          cerr << "Index " << fastaindex << " not found, generating the index..." << flush;
-          if (fai_build3(fastap.c_str(), (fastapath + ".fai").c_str(), NULL) == -1) {
+        if (!exists(fastaindex) or (compressed and !exists(gzip_index))) {
+          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\"" : "") << " not found, generating the index" << ((compressed) ? "es" : "") << "..." << flush;
+          if (fai_build3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str()) == -1) {
             cerr << "\nERROR: failed to create index" << endl;
             exit(1);
           }
           cerr << " done." << endl;
-        } else if (last_write_time(fastaindex) < last_write_time(fastap)) {
-          cerr << "Index " << fastaindex << " is older than MSA, regenerating the index..." << flush;
+        } else if (last_write_time(fastaindex) < last_write_time(fastap) or
+            (compressed and last_write_time(gzip_index) < last_write_time(fastap))) {
+          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\" are" : " is") << " older than MSA, regenerating the index" << ((compressed) ? "es" : "") << "..." << flush;
           remove(fastaindex);
-          if (fai_build3(fastap.c_str(), (fastapath + ".fai").c_str(), NULL) == -1) {
+          if (compressed and exists(gzip_index))
+            remove(gzip_index);
+          if (fai_build3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str()) == -1) {
             cerr << "\nERROR: failed to create index" << endl;
             exit(1);
           }
           cerr << " done." << endl;
         } else {
-          cerr << "Index " << fastaindex << " found" << endl;
+          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " and \"" + gzip_index.string() + "\"" : "") << " found" << endl;
         }
-        assert(exists(fastaindex));
-        if (!(idx = fai_load3(fastap.c_str(), fastaindex.c_str(), NULL, FAI_NONE))) {
+
+        assert(exists(fastaindex) and (!compressed or exists(gzip_index)));
+        if (!(idx = fai_load3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str(), FAI_NONE))) {
           cerr << "\nERROR: failed to create index" << endl;
           exit(1);
         }

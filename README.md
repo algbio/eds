@@ -12,6 +12,5 @@ make
 ```
 
 ## todo
-- support bgzipped files
 - speed up meaningful extension computation
 - QC on the edses in chr19 experiment
