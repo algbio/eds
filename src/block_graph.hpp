@@ -169,6 +169,12 @@ namespace eds::block_graph {
             *out << "\t" << b.size();
         *out << "\n";
     }
+    void output_block_info(const vector<unsigned long> &block_sizes, ostream *out) {
+        *out << "B";
+        for (auto size : block_sizes)
+            *out << "\t" << size;
+        *out << "\n";
+    }
     /* TODO: rename vertices? */
     void output_block_graph(const block_graph &g, ofstream &out) {
         for (auto &b : g.blocks) {
@@ -205,11 +211,13 @@ namespace eds::block_graph {
             ostream *out) {
         unordered_map<string,unsigned long> block, last_block;
         unordered_map<unsigned long,unordered_set<unsigned long>> adjacency_lists;
+        vector<unsigned long> block_sizes;
+
         seg_index nodes = 0, card = 0, size = 0; // gap-aware size
 
         output_msa_info(rows, cols, out);
         output_segmentation(S, out);
-        // TODO block info
+        block_sizes.reserve(S.size());
         
         vector<seg_index> prev(rows, SEG_INDEX_MAX);
         for (seg_size_t i = 0; i < S.size(); i++) {
@@ -253,9 +261,11 @@ namespace eds::block_graph {
                     *out << "L\t" << inneighbor << "\t+\t" << outneighbor << "\t+\t0M" << "\n";
                 }
             }
+            block_sizes.push_back(block.size());
             last_block = std::move(block);
         }
 
+        output_block_info(block_sizes, out);
         return { card, size };
     }
     pair<seg_index,seg_index> segment_stream_eds(
