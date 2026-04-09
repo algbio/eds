@@ -7,9 +7,10 @@ HTSLIB_INCLUDE=$(ROOT_DIR)ext/htslib
 HTSLIB_LIB=$(ROOT_DIR)ext/htslib
 HTSLIB_FLAGS=-L $(HTSLIB_LIB) -lhts -Wl,-rpath $(HTSLIB_LIB)
 OTHER_INCLUDE=ext/
+SDSL_INCLUDE=ext/sdsl-lite/include/
 
-msa2eds-mincard: src/msa2eds-mincard.cpp src/block_graph.hpp src/RMaxQTree.h src/RMaxQTree.cpp src/msa_chunker.hpp
-	${CXX} $(CXX_FLAGS) -DVERSION="\"$(VERSION)\"" -o msa2eds-mincard src/msa2eds-mincard.cpp src/RMaxQTree.cpp -I $(HTSLIB_INCLUDE) -I $(OTHER_INCLUDE) $(HTSLIB_FLAGS)
+msa2eds-mincard: src/msa2eds-mincard.cpp src/block_graph.hpp src/RMaxQTree.h src/RMaxQTree.cpp src/msa_chunker.hpp src/trie.hpp
+	${CXX} $(CXX_FLAGS) -DVERSION="\"$(VERSION)\"" -o msa2eds-mincard src/msa2eds-mincard.cpp src/RMaxQTree.cpp -I $(HTSLIB_INCLUDE) -I $(OTHER_INCLUDE) -I $(SDSL_INCLUDE) $(HTSLIB_FLAGS)
 
 clean:
 	rm -f msa2eds-mincard

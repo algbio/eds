@@ -4,3 +4,6 @@
 [submodule "ext/htslib"]
 	path = ext/htslib
 	url = https://github.com/samtools/htslib
+[submodule "ext/sdsl-lite"]
+	path = ext/sdsl-lite
+	url = https://github.com/xxsds/sdsl-lite

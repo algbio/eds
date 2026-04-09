@@ -10,9 +10,11 @@
 #include <limits>
 #include <tuple>
 #include <iomanip>
+#include <functional>
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
+#include "trie.hpp"
 #include "msa_chunker.hpp"
 #include "CLI11.hpp"
 
@@ -62,6 +64,123 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions(
         return L_y; // No extension possible
     }
 
+    set<string> reverse_unique_chunk;
+    for (seg_index i = 0; i < r; i++) {
+      string s = idx.msa_substr(i, y - min(U, y), min(U, y));
+      if (!gaps_as_symbols)
+        s.erase(remove(s.begin(), s.end(), '-'), s.end());
+      reverse(s.begin(), s.end());
+      reverse_unique_chunk.insert(move(s));
+    }
+
+    if (reverse_unique_chunk.size() > 1) {
+      trie::trie T(reverse_unique_chunk);
+      reverse_unique_chunk.clear();
+
+      set<string> reverse_chunk;
+      for (seg_index i = 0; i < r; i++) {
+        string s = idx.msa_substr(i, y - min(U, y), min(U, y));
+        reverse(s.begin(), s.end());
+        reverse_chunk.insert(s);
+      }
+
+      vector<unsigned long long> counts(T.nodes() + 1, 0);
+      counts[T.nodes()] = reverse_chunk.size(); // current count of the root
+      vector<unsigned long long> active_node(reverse_chunk.size(), T.nodes());
+      unsigned long long height = 1; // distinct nodes
+
+      for (seg_index len = 1; len <= min(U, y); ++len) {
+        unsigned long long prev_height = height;
+        auto it = reverse_chunk.begin();
+        for (seg_index i = 0; i < reverse_chunk.size(); ++i, ++it) {
+          if (gaps_as_symbols or (*it)[len - 1] != '-') {
+            counts[active_node[i]] -= 1;
+            if (counts[active_node[i]] == 0) {
+              height -= 1;
+            }
+
+            if (active_node[i] == T.nodes()) {
+              active_node[i] = T.child(T.root(), (*it)[len - 1]);
+            } else {
+              active_node[i] = T.child(active_node[i], (*it)[len - 1]);
+            }
+            if (counts[active_node[i]] == 0) {
+              height += 1;
+            }
+            counts[active_node[i]] += 1;
+            assert(active_node[i] != trie::trie::null);
+          }
+        }
+        assert(it == reverse_chunk.end());
+        if (len == L or (len > L and prev_height != height)) {
+          L_y.emplace_back(y - len + 1, height);
+        }
+      }
+    } else {
+      if (gaps_as_symbols) {
+        L_y.emplace_back(y - L + 1, 1);
+      } else {
+        set<string> reverse_chunk;
+        for (seg_index i = 0; i < r; i++) {
+          string s = idx.msa_substr(i, y - min(U, y), min(U, y));
+          reverse(s.begin(), s.end());
+          reverse_chunk.insert(s);
+        }
+        if (reverse_chunk.size() == 1) {
+          L_y.emplace_back(y - L + 1, 1);
+        } else {
+          vector<unsigned long long> counts(min(U, y) + 1, 0);
+          counts[0] = reverse_chunk.size(); // current count of ε
+          vector<unsigned long long> active_node(reverse_chunk.size(), 0);
+          unsigned long long height = 1; // distinct nodes
+
+          for (seg_index len = 1; len <= min(U, y); ++len) {
+            unsigned long long prev_height = height;
+            auto it = reverse_chunk.begin();
+            for (seg_index i = 0; i < reverse_chunk.size(); ++i, ++it) {
+              if ((*it)[len - 1] != '-') {
+                counts[active_node[i]] -= 1;
+                if (counts[active_node[i]] == 0) {
+                  height -= 1;
+                }
+
+                active_node[i] += 1;
+                if (counts[active_node[i]] == 0) {
+                  height += 1;
+                }
+                counts[active_node[i]] += 1;
+              }
+            }
+            assert(it == reverse_chunk.end());
+            if (len == L or (len > L and prev_height != height)) {
+              L_y.emplace_back(y - len + 1, height);
+            }
+          }
+        }
+      }
+    }
+
+
+    // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
+    L_y.emplace_back(max((seg_index)0, y - U), -1);
+
+    return L_y;
+}
+
+vector<pair<seg_index, seg_index>> compute_meaningful_extensions_naive(
+    msa_chunker::msa_chunker &idx,
+    const seg_index r,
+    const seg_index c,
+    const seg_index L,
+    const seg_index U,
+    const seg_index y,
+    const bool gaps_as_symbols
+) {
+    vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing
+    if (y < L) {
+        return L_y; // No extension possible
+    }
+
     // Enforce ℓ_{y,1} = y - L + 1 down to ℓ_{y,d_y} > y - U
     seg_index prev_height = -1;
     for (seg_index len = L; len <= U && y - len + 1 >= 1; ++len) {
@@ -87,6 +206,7 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions(
 
     return L_y;
 }
+
 vector<vector<pair<seg_index, seg_index>>> compute_all_meaningful_extensions(
     msa_chunker::msa_chunker &idx,
     const seg_index r,
@@ -281,7 +401,7 @@ int main(int argc, char* argv[]) {
       ->default_val("");
 
     string outputgfafile;
-    app.add_option("-g,--output-gfa", outputgfafile, "Output file for the corresponding block graph (xGFA format, not recommended with --perfect-segments)")
+    app.add_option("-g,--output-gfa", outputgfafile, "Output file for the corresponding block graph (xGFA format, not recommended with --trivial-vertical)")
       ->default_val("");
 
     seg_index L;
