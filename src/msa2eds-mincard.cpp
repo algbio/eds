@@ -11,12 +11,15 @@
 #include <tuple>
 #include <iomanip>
 #include <functional>
+#include <cassert>
 
 #include "RMaxQTree.h"
 #include "block_graph.hpp"
 #include "trie.hpp"
 #include "msa_chunker.hpp"
 #include "CLI11.hpp"
+
+//#define MINCARD_DEBUG
 
 using namespace std::chrono;
 using namespace std;
@@ -181,9 +184,9 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions_naive(
         return L_y; // No extension possible
     }
 
-    // Enforce ℓ_{y,1} = y - L + 1 down to ℓ_{y,d_y} > y - U
+    // Compute ℓ_{y,1}, ℓ_{y,2}, ..., ℓ_{y,d_y} in reverse order
     seg_index prev_height = -1;
-    for (seg_index len = L; len <= U && y - len + 1 >= 1; ++len) {
+    for (seg_index len = min(U, y); len >= L; --len) {
         seg_index start = y - len + 1;
         unordered_set<string> unique_strings;
 
@@ -195,11 +198,13 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions_naive(
         }
 
         seg_index height = unique_strings.size();
-        if (height != prev_height) {
-            L_y.emplace_back(start, height);
-            prev_height = height;
+        if (prev_height != -1 and height != prev_height) {
+            L_y.emplace_back(start - 1, prev_height);
         }
+        prev_height = height;
     }
+    L_y.emplace_back(y, prev_height);
+    reverse(L_y.begin(), L_y.end());
 
     // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
     L_y.emplace_back(max((seg_index)0, y - U), -1);
@@ -289,6 +294,9 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
           L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
           L_yy = &L_yy_on_the_fly;
         }
+#ifdef MINCARD_DEBUG
+        assert(*L_yy == compute_meaningful_extensions_naive(idx, r, c, L ,U, y, gaps_as_symbols));
+#endif
 
         // optimal solution using L_yy
         for (size_t j = 0; j + 1 < L_yy->size(); ++j) {
@@ -407,12 +415,12 @@ int main(int argc, char* argv[]) {
     seg_index L;
     CLI::Option *Lopt = app.add_option("-L,--min-segment-length", L, "Minimum segment length")
       ->default_val(1)
-      ->expected(1, msa_chunker::MAX_CHUNK_COLS);
+      ->expected(1, numeric_limits<int>::max());
 
     seg_index U;
     CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length")
       ->default_val(31)
-      ->expected(1, msa_chunker::MAX_CHUNK_COLS);
+      ->expected(1, numeric_limits<int>::max());
 
     bool allow_perfect_segments = false;
     app.add_flag("-p,--perfect-segments", allow_perfect_segments, "In normal mode, additionally consider perfect segments of any length (recommended). With --trivial-vertical and --trivial-horizontal, use the maximal perfect segments and the trivial strategy in-between.");
@@ -494,12 +502,12 @@ int main(int argc, char* argv[]) {
 
       vector<vector<pair<seg_index, seg_index>>> L_y;
       if (preprocess) {
-	      cerr << "Computing the meaningful extensions..." << flush;
-	      auto start = high_resolution_clock::now();
-	      L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols);
-	      auto stop = high_resolution_clock::now();
-	      auto duration = duration_cast<milliseconds>(stop - start);
-	      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+        cerr << "Computing the meaningful extensions..." << flush;
+        auto start = high_resolution_clock::now();
+        L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols);
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<milliseconds>(stop - start);
+        cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
       }
 
       cerr << "Computing the minimum-cardinality segmentation..." << flush;
