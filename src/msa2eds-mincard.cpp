@@ -203,7 +203,7 @@ vector<pair<seg_index, seg_index>> compute_meaningful_extensions_naive(
         }
         prev_height = height;
     }
-    L_y.emplace_back(y, prev_height);
+    L_y.emplace_back(y - L + 1, prev_height);
     reverse(L_y.begin(), L_y.end());
 
     // Add dummy ℓ_{y,d_y+1} = max(0, y - U)
@@ -261,8 +261,8 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
         const vector<bool> &perfect_columns = perfect_columns_dummy
 ) {
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
-    vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());      // m[y] is the DP value: minimal number of strings
-    vector<seg_index> mneg(c + 1, numeric_limits<seg_index>::min());  // store -m[y] for max-query simulation
+    vector<seg_index> m(c + 1, numeric_limits<seg_index>::max());     // m[y] is the DP value: minimal number of strings
+    vector<seg_index> mneg(c + 1, -numeric_limits<seg_index>::max()); // store -m[y] for max-query simulation
     vector<seg_index> back(c + 1, -1);    // traceback
     seg_index perfect_back = -1, perfect_m = numeric_limits<seg_index>::max();
     if (allow_perfect_segments and perfect_columns[0]) {
@@ -306,7 +306,10 @@ pair<seg_index, vector<pair<seg_index, seg_index>>> segment_with_rmq(
 
             // query returns pair (index, value), but value is -m[index]
             auto [x, neg_mx] = rmq.query(l, r);
+            if (x == -1) continue;
+            if (neg_mx == -numeric_limits<seg_index>::max()) continue;
             key_type candidate = (*L_yy)[j].second + m[x];
+            assert(candidate >= 0);
 
             if (candidate < m[y]) {
                 m[y] = candidate;
@@ -449,6 +452,10 @@ int main(int argc, char* argv[]) {
     } catch (const CLI::ParseError &e) {
       return app.exit(e);
     }
+    if (L > U) {
+      cerr << "Upper and lower bounds are not compatible!" << endl;
+      return 1;
+    }
 
     msa_chunker::msa_chunker idx(inputfile, U);
     const int r = idx.get_rows();
@@ -462,7 +469,7 @@ int main(int argc, char* argv[]) {
       tie(p, perfect_columns) = compute_perfect_columns(idx, r, c);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cout << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" <<((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      cerr << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" <<((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
 
     vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
@@ -516,7 +523,12 @@ int main(int argc, char* argv[]) {
       tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, L_y, perfect_columns);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (mincard != std::numeric_limits<seg_index>::max()) {
+        cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      } else {
+        cerr << " done: no valid segmentation found!" << endl;
+        return 1;
+      }
     }
 
     eds::block_graph::seg_size_t card, size;

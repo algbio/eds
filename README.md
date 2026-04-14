@@ -12,7 +12,7 @@ make
 ```
 
 ## todo
-- handle no valid segmentation
 - refactor main file
 - compact tries to reduce topology ops
-- QC on the edses in chr19 experiment
+- QC on the EDSes in chr19 experiment (maybe with https://github.com/giovannarosone/EDS-BWT?)
+- show VCF workflow in README
