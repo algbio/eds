@@ -1,8 +1,5 @@
-/*
- * static string trie allowing construction, navigation, and node comparisons
- */
-#ifndef TRIE_H
-#define TRIE_H
+#ifndef TRIE_HPP
+#define TRIE_HPP
 
 #include <vector>
 #include <string>
@@ -25,10 +22,11 @@ using std::reference_wrapper;
 
 //#define TRIE_DEBUG
 
+/*
+ * static string trie allowing construction, navigation, and node comparisons
+ */
 namespace trie {
-  /*
-   * non-root node indeces are in the range [0,nodes())
-   */
+  // non-root node indexes are in the range [0,nodes())
   class trie {
     private:
       typedef sdsl::bp_support_sada<> bp_support_t;
@@ -38,7 +36,7 @@ namespace trie {
       bp_support_t bp_topology;
       string label_to_parent;
 
-      unsigned long long lcp(const string &s1, const string &s2) {
+      inline unsigned long long lcp(const string &s1, const string &s2) {
         unsigned long long res = 0;
         while (res < s1.length() and res < s2.length() and s1[res] == s2[res])
           res += 1;
@@ -99,8 +97,8 @@ namespace trie {
           length = s->length();
           const std::size_t i_lcp_length = lcp_lengths[i];
           for (std::size_t j = 0; j < length - i_lcp_length; ++j) {
-              topology[n++] = 1; // open the new nodes of this string
-              label_to_parent[nn++] = (*s)[i_lcp_length + j];
+            topology[n++] = 1; // open the new nodes of this string
+            label_to_parent[nn++] = (*s)[i_lcp_length + j];
           }
 
           prevlength = length;
@@ -135,5 +133,4 @@ namespace trie {
       }
   };
 } // namespace trie
-
-#endif // TRIE_H
+#endif // TRIE_HPP

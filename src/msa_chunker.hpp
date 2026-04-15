@@ -1,10 +1,5 @@
-/*
- * load a FASTA MSA with htslib into memory chunk by chunk, but the chunking
- *   is done automatically, hoping for a linear forward scan of the MSA; since
- *   we expect all rows to be processed, we only consider vertical MSA slices
- */
-#ifndef MSA_CHUNKER_H
-#define MSA_CHUNKER_H
+#ifndef MSA_CHUNKER_HPP
+#define MSA_CHUNKER_HPP
 
 #include <vector>
 #include <string>
@@ -29,6 +24,11 @@ using std::filesystem::path, std::filesystem::exists, std::filesystem::last_writ
 namespace msa_chunker {
   typedef hts_pos_t msa_pos_t; // type for MSA cols, rows index
 
+  /*
+   * load a FASTA MSA with htslib into memory chunk by chunk, but the chunking
+   *   is done automatically, hoping for a linear forward scan of the MSA; since
+   *   we expect all rows to be processed, we only consider vertical MSA slices
+   */
   class msa_chunker {
     private:
       constexpr static msa_pos_t MIN_CHUNK_COLS = 131072;
@@ -161,4 +161,4 @@ namespace msa_chunker {
       }
   };
 } // msa_chunker
-#endif // MSA_CHUNKER_H
+#endif // MSA_CHUNKER_HPP

@@ -13,8 +13,6 @@
 #include <math.h>
 #include <iostream>
 
-//i_type negative_infinity = - std::numeric_limits<i_type>::infinity();
-//i_type negative_infinity = -10000000; // TODO understand this
 const i_type negative_infinity = std::numeric_limits<i_type>::min();
 
 void RMaxQTree::init(i_type node, i_type b, i_type e, i_type *keys) {
@@ -51,7 +49,7 @@ void RMaxQTree::updateTree(i_type key, i_type j, i_type Cj, i_type node, i_type 
 		else
 			updateTree(key, j, Cj, 2 * node + 1, mid + 1, e);
 		// And propagate back up
-		if (tree[2 * node].Cj >= tree[2 * node + 1].Cj)
+		if (tree[2 * node].Cj > tree[2 * node + 1].Cj) // NR: propagate right value
 			tree[node] = tree[2 * node];
 		else
 			tree[node] = tree[2 * node + 1];
@@ -75,11 +73,11 @@ std::pair<i_type,i_type> RMaxQTree::queryTree(i_type i, i_type j, i_type node, i
 		return right;
 	if (right.second == negative_infinity)
 		return left;
-	if (left.second > right.second) // NR: prefer higher value
+	if (left.second <= right.second) // NR: prefer higher key
+		return right;
+	else
 		return left;
-	return right;
 }
-	
 
 // Empty constructor for creating arrays
 RMaxQTree::RMaxQTree() {}

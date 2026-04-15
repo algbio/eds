@@ -1,5 +1,5 @@
 # `e_coli_sim`
-After checking out the "getting the dataset" subsection, compile `msa2eds-mincard`, obtain the `msatoeds` scripts, and run the experiment with commands
+After checking out the "getting the dataset" subsection, compile `mincard`, obtain the `msatoeds` scripts, and run the experiment with commands
 ```
 make -C ../../
 git submodule update --init ../ext/junctions

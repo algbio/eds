@@ -1,4 +1,4 @@
-msa2eds-mincard
+mincard
 test/*.eds
 test/*.gfa
 test/*.fai
@@ -6,6 +6,7 @@ test/*.fai
 experiments/e_coli_sim/input/e_coli_K-12_MG1655.fasta
 experiments/e_coli_sim/input/e_coli_K-12_MG1655_dataset.zip
 experiments/e_coli_sim/input/msa.fa
+experiments/e_coli_sim/input/msa.fa.fai
 experiments/e_coli_sim/input/msa.unaligned.fa
 experiments/e_coli_sim/input/msa.treefile
 experiments/e_coli_sim/input/msa.treefile.log
