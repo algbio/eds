@@ -6,35 +6,42 @@ cd $thisfolder
 mincard=$thisfolder/../../mincard
 seqtoed=$thisfolder/../ext/junctions/scripts/msatoeds/seq_to_ed.py
 getstats=$thisfolder/../ext/junctions/scripts/msatoeds/get_stats.py
-inputmsa=$thisfolder/input/covid19-100-N.fa
+inputmsas=($thisfolder/input/covid_100.fa.gz $thisfolder/input/covid_1000.fa.gz $thisfolder/input/covid_10000.fa.gz $thisfolder/input/covid_100000.fa.gz)
 usrbintimeformat="%e total time"
 
 mkdir output
 cd output
-ln -s $inputmsa msa.fa
 
-# mincard
-for U in 4 8 16 32 64 128 256 512
+for inputmsa in "${inputmsas[@]}"
 do
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -v -U $U -o mincard_U${U}.eds
-done
+	base=$(basename $inputmsa .fa.gz)
+	echo "LOG: processing $base..."
+	ln -s $inputmsa msa.fa.gz
+	# mincard
+	for U in 4 8 16 32 64 128 256 512
+	do
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U -o ${base}_mincard_U${U}.eds # plain
+		rm msa.fa.gz.fai msa.fa.gz.gzi
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U --perfect-segments -o ${base}_mincard_U${U}_p.eds # perfect segments
+		rm msa.fa.gz.fai msa.fa.gz.gzi
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz --preprocess -v -U $U -o ${base}_mincard_U${U}.eds # preprocess
+		rm msa.fa.gz.fai msa.fa.gz.gzi
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U --perfect-segments --preprocess -o ${base}_mincard_U${U}_p.eds
+		rm msa.fa.gz.fai msa.fa.gz.gzi
+	done
 
-# mincard with perfect segments
-for U in 4 8 16 32 64 128 256 512
-do
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -v -U $U --perfect-segments -o mincard_U${U}_p.eds
-done
+	# mincard trivial S^|||
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --trivial-vertical -o ${base}_mincard_t.eds
 
-# mincard trivial S^|||
-/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -v --trivial-vertical -o mincard_t.eds
+	# mincard trivial S^≡ with perfect segments
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --trivial-horizontal --perfect-segments -o ${base}_mincard_np.eds
 
-# mincard trivial S^≡ with perfect segments
-/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa -v --trivial-horizontal --perfect-segments -o mincard_np.eds
-
-# msatoeds heuristics
-for strat in trivial greedy double-greedy
-do
-	echo "Strategy ${strat}"
-	/usr/bin/time -f"$usrbintimeformat" python3 $seqtoed msa.fa "${strat}.eds" ${strat}
-	python3 $getstats "${strat}.eds" eds
+	# msatoeds heuristics
+	for strat in trivial greedy double-greedy
+	do
+		echo "Strategy ${strat}"
+		/usr/bin/time -f"$usrbintimeformat" python3 $seqtoed <(gunzip -c msa.fa.gz) "${base}_${strat}.eds" ${strat}
+		python3 $getstats "${base}_${strat}.eds" eds
+	done
+	rm msa.fa.gz
 done

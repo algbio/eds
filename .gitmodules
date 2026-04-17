@@ -7,3 +7,9 @@
 [submodule "ext/sdsl-lite"]
 	path = ext/sdsl-lite
 	url = https://github.com/xxsds/sdsl-lite
+[submodule "experiments/ext/minimap2"]
+	path = experiments/ext/minimap2
+	url = https://github.com/lh3/minimap2
+[submodule "experiments/ext/ViralMSA"]
+	path = experiments/ext/ViralMSA
+	url = https://github.com/niemasd/ViralMSA

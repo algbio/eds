@@ -3,7 +3,7 @@ Program `mincard` constructs Elastic Degenerate Strings from a multiple sequence
 ```sh
 git clone https://github.com/algbio/eds && cd eds
 git submodule update --init --recursive ext/htslib ext/sdsl-lite
-(cd ext/htslib && autoreconf -i && ./configure && make -j)
+(cd ext/htslib && autoreconf -i && ./configure && make)
 ```
 Otherwise, if you install HTSlib some other way (for example from its [website](https://www.htslib.org/download/)), change variables `HTSLIB_INCLUDE` and `HTSLIB_LIB` in `Makefile`. Finally, compile `mincard` and test it with
 ```sh
@@ -13,5 +13,5 @@ make
 
 ## todo
 - compact tries to reduce topology ops
-- QC on the EDSes in chr19 experiment (maybe with https://github.com/giovannarosone/EDS-BWT?)
+- QC on the EDSes in experiment (maybe with https://github.com/giovannarosone/EDS-BWT?)
 - show VCF workflow in README

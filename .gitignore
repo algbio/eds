@@ -12,9 +12,19 @@ experiments/e_coli_sim/input/msa.treefile
 experiments/e_coli_sim/input/msa.treefile.log
 experiments/e_coli_sim/output
 
-experiments/covid/input/covid19-ecoli-efg.zip
-experiments/covid/input/covid19-100.fa
-experiments/covid/input/covid19-100-N.fa
+experiments/covid/input/covid_100.fa.gz
+experiments/covid/input/covid_1000.fa.gz
+experiments/covid/input/covid_10000.fa.gz
+experiments/covid/input/covid_100000.fa.gz
+experiments/covid/input/reference.fa
+experiments/covid/input/sample_100.acc
+experiments/covid/input/sample_1000.acc
+experiments/covid/input/sample_10000.acc
+experiments/covid/input/sample_100000.acc
+experiments/covid/input/viralmsa_100/
+experiments/covid/input/viralmsa_1000/
+experiments/covid/input/viralmsa_10000/
+experiments/covid/input/viralmsa_100000/
 experiments/covid/output
 
 experiments/chr19/input/chr19_100.aligned.fa.xz.00
