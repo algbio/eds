@@ -8,15 +8,19 @@
 #include <algorithm>
 #include <limits>
 #include <filesystem>
+#include <chrono>
+#include <iomanip>
 
 #include <htslib/sam.h>
 #include <htslib/faidx.h>
 #include <htslib/bgzf.h>
 
 using std::vector;
-using std::string;
+using std::string, std::to_string;
 using std::cerr, std::endl, std::flush;
 using std::min, std::max;
+using std::chrono::high_resolution_clock, std::chrono::duration_cast, std::chrono::milliseconds;
+using std::setprecision;
 using std::filesystem::path, std::filesystem::exists, std::filesystem::last_write_time, std::filesystem::remove;
 
 //#define MSA_CHUNKER_DEBUG
@@ -72,7 +76,7 @@ namespace msa_chunker {
       /*
        * index a given (gzipped) FASTA file
        */
-      msa_chunker(const string &fastapath, const msa_pos_t max_qlen) {
+      msa_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose) {
         max_chunk_cols = max(max_qlen, MIN_CHUNK_COLS);
         path fastap(fastapath);
         path fastaindex(fastapath + ".fai");
@@ -87,14 +91,18 @@ namespace msa_chunker {
         }
 
         if (!exists(fastaindex) or (compressed and !exists(gzip_index))) {
+          auto start = high_resolution_clock::now();
           cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\"" : "") << " not found, generating the index" << ((compressed) ? "es" : "") << "..." << flush;
           if (fai_build3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str()) == -1) {
             cerr << "\nERROR: failed to create index" << endl;
             exit(1);
           }
-          cerr << " done." << endl;
+          auto stop = high_resolution_clock::now();
+          auto duration = duration_cast<milliseconds>(stop - start);
+          cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
         } else if (last_write_time(fastaindex) < last_write_time(fastap) or
             (compressed and last_write_time(gzip_index) < last_write_time(fastap))) {
+          auto start = high_resolution_clock::now();
           cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\" are" : " is") << " older than MSA, regenerating the index" << ((compressed) ? "es" : "") << "..." << flush;
           remove(fastaindex);
           if (compressed and exists(gzip_index))
@@ -103,7 +111,9 @@ namespace msa_chunker {
             cerr << "\nERROR: failed to create index" << endl;
             exit(1);
           }
-          cerr << " done." << endl;
+          auto stop = high_resolution_clock::now();
+          auto duration = duration_cast<milliseconds>(stop - start);
+          cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
         } else {
           cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " and \"" + gzip_index.string() + "\"" : "") << " found" << endl;
         }

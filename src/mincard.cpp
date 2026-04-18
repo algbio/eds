@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
       return 1;
     }
 
-    msa_chunker::msa_chunker idx(inputfile, U);
+    msa_chunker::msa_chunker idx(inputfile, U, verbose);
     const int r = idx.get_rows();
     const int c = idx.get_cols();
     cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
@@ -100,6 +100,7 @@ int main(int argc, char* argv[]) {
     vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
     if (trivial_segmentation) {
       cerr << "Computing the S^¦¦¦ segmentation..." << flush;
+      auto start = high_resolution_clock::now();
       segmentation.reserve(c);
       for (seg_index i = 1; i <= c; ++i) {
         seg_index j = i;
@@ -111,9 +112,12 @@ int main(int argc, char* argv[]) {
         segmentation.push_back({ i, j });
         i = j;
       }
-      cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
+      cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     } else if (no_segmentation) {
       cerr << "Computing the S^≡ segmentation..." << flush;
+      auto start = high_resolution_clock::now();
       if (!allow_perfect_segments) {
         segmentation.push_back({ 1, c });
       } else {
@@ -128,7 +132,9 @@ int main(int argc, char* argv[]) {
           i = j;
         }
       }
-      cerr << " done: "  << segmentation.size() << " segments/ED words" << endl;
+      auto stop = high_resolution_clock::now();
+      auto duration = duration_cast<milliseconds>(stop - start);
+      cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     } else {
       cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
 
@@ -173,7 +179,7 @@ int main(int argc, char* argv[]) {
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
+      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
     if (outputedsfile != "") {
       ostream *out;
@@ -191,7 +197,7 @@ int main(int argc, char* argv[]) {
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
+      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
     if (outputgfafile == "" and outputedsfile == "") {
       cerr << "Computing the EDS stats (no output selected)..." << flush;
@@ -199,9 +205,8 @@ int main(int argc, char* argv[]) {
       tie(card, size) = segment_stream_no_output(idx, r, c, segmentation);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << ":";
+      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     }
 
-    cerr << " " << card << " cardinality, " << size << " gap-aware size" << endl;
     return 0;
 }
