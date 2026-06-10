@@ -10,17 +10,17 @@
 #include "trie.hpp"
 #include "RMaxQTree.h" // i_type
 #include "msa_chunker.hpp"
+#include "pbwt.hpp"
 
 using std::vector;
 using std::pair;
 using std::set;
 using std::numeric_limits;
-using trie::trie;
-typedef msa_chunker::msa_chunker msa_t;
 
 //#define ALGO_DEBUG
 
 namespace algo {
+  typedef msa_chunker::msa_chunker msa_t;
   typedef segment::seg_index seg_index;
 
   /* compute the meaningful extensions L_y of MSA[1..r][1..c] indexed by idx */
@@ -31,13 +31,19 @@ namespace algo {
       const seg_index L,
       const seg_index U,
       const seg_index y,
-      const bool gaps_as_symbols
+      const bool gaps_as_symbols,
+      const bool use_pbwt
       ) {
+    if (use_pbwt) {
+      pbwt::pbwt& PBWT = pbwt::pbwt::instance(r);
+      return PBWT.compute_meaningful_extensions(idx, r, c, L, U, y);
+    }
+
     vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing
     if (y < L) {
       return L_y; // No extension possible
     }
-
+    
     set<string> reverse_unique_chunk;
     for (seg_index i = 0; i < r; i++) {
       string s = idx.msa_substr(i, y - min(U, y), min(U, y));
@@ -189,12 +195,13 @@ namespace algo {
       const seg_index c,
       const seg_index Lbound,
       const seg_index Ubound,
-      const bool gaps_as_symbols
+      const bool gaps_as_symbols,
+      const bool use_pbwt
       ) {
     vector<vector<pair<seg_index, seg_index>>> L(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
-      L[y] = compute_meaningful_extensions(idx, r, c, Lbound, Ubound, y, gaps_as_symbols);
+      L[y] = compute_meaningful_extensions(idx, r, c, Lbound, Ubound, y, gaps_as_symbols, use_pbwt);
     }
 
     return L;
@@ -235,6 +242,7 @@ namespace algo {
       const int L,
       const int U,
       const bool gaps_as_symbols,
+      const bool use_pbwt,
       const vector<vector<pair<seg_index, seg_index>>> &L_y,
       const vector<bool> &perfect_columns = perfect_columns_dummy
       ) {
@@ -266,7 +274,7 @@ namespace algo {
       if (L_y.size() > 0) {
         L_yy = &(*(L_y.begin() + y));
       } else {
-        L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols);
+        L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols, use_pbwt);
         L_yy = &L_yy_on_the_fly;
       }
 #ifdef ALGO_DEBUG
