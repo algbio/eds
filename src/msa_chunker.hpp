@@ -166,6 +166,13 @@ namespace msa_chunker {
         }
       }
 
+      // Return the character at MSA[row, col]
+      char msa_at(msa_pos_t row, msa_pos_t col) {
+        assert(0 <= row and row < rows and 0 <= col and col < cols);
+        load_chunk(col, 1);
+        return msa_chunk[row][col - chunk_start];
+      }
+
       ~msa_chunker() {
         fai_destroy(idx);
       }
