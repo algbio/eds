@@ -11,6 +11,7 @@ experiments/e_coli_sim/input/msa.unaligned.fa
 experiments/e_coli_sim/input/msa.treefile
 experiments/e_coli_sim/input/msa.treefile.log
 experiments/e_coli_sim/output
+experiments/e_coli_sim/pbwt_output
 
 experiments/covid/input/covid_100.fa.gz
 experiments/covid/input/covid_1000.fa.gz
@@ -26,9 +27,12 @@ experiments/covid/input/viralmsa_1000/
 experiments/covid/input/viralmsa_10000/
 experiments/covid/input/viralmsa_100000/
 experiments/covid/output
+experiments/covid/pbwt_output
 
 experiments/chr19/input/chr19_100.aligned.fa.xz.00
 experiments/chr19/input/chr19_100.aligned.fa.xz.02
 experiments/chr19/input/chr19_100.aligned.fa.xz.01
 experiments/chr19/input/chr19_100.aligned.uppercase.fa
+experiments/chr19/input/msa.fa.fai
 experiments/chr19/output
+experiments/chr19/pbwt_output

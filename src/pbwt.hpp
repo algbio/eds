@@ -2,6 +2,7 @@
 #define PBWT_HPP
 
 #include <vector>
+#include <array>
 #include <utility>
 #include <iostream>
 #include <numeric>
@@ -10,6 +11,7 @@
 #include "msa_chunker.hpp"
 
 using std::vector;
+using std::array;
 using std::cerr, std::endl;
 
 // #define PBWT_DEBUG
@@ -20,18 +22,6 @@ using std::cerr, std::endl;
 namespace pbwt {
   typedef msa_chunker::msa_chunker msa_t;
   typedef segment::seg_index seg_index;
-
-  const unsigned int alphabet_size = 6;
-  inline unsigned int symbol_number(const char symbol) {
-    switch (symbol) {
-      case 'A': return 0;
-      case 'C': return 1;
-      case 'G': return 2;
-      case 'T': return 3;
-      case '-': return 4;
-      default: return 5; // N
-    }
-  }
 
   class pbwt {
     private:
@@ -47,16 +37,43 @@ namespace pbwt {
       seg_index dy; // size of sk
       vector<unsigned long long> a;
       vector<unsigned long long> e;
+      // Alphabet
+      array<int, 256> alphabet = [] {
+        array<int, 256> alph{};
+        alph.fill(-1);
+
+        alph['A'] = 0;
+        alph['C'] = 1;
+        alph['G'] = 2;
+        alph['T'] = 3;
+        alph['-'] = 4;
+
+        return alph;
+      }();
+      unsigned int alphabet_size = 5;
       // Singleton constructor
       pbwt(const seg_index r): 
         ak(r + 1), sk(r + 2), tk(r + 2), ek(r + 1, 0), 
-        cnt(alphabet_size + 1), prev(alphabet_size),
         dy(0), a(r + 1), e(r + 1)
       {
+        cnt.resize(alphabet_size + 1);
+        prev.resize(alphabet_size);
         // Initial sorted order 1, 2, 3..
         std::iota(ak.begin(), ak.end(), 0);
       }
       ~pbwt() = default;
+      // Add new symbols to alphabet
+      unsigned int symbol_number(const char symbol) {
+        auto s = static_cast<unsigned char>(symbol);
+
+        if (alphabet[s] == -1) {
+          alphabet[s] = alphabet_size++;
+          cnt.push_back(0);
+          prev.push_back(0);
+        }
+
+        return alphabet[s];
+      }
     public:
       // Singleton pattern
       static pbwt& instance(const seg_index r) {
@@ -80,54 +97,75 @@ namespace pbwt {
         if (y < L) {
           return {}; // No extension possible
         }
-        // Zero init counting sort arrays and frequency array
+        // Symbol frequency
         cnt.assign(cnt.size(), 0);
-        prev.assign(prev.size(), 0);
-        tk.assign(tk.size(), 0);
-        sk[++dy] = y;
-        // Counting sort
-        for (seg_index i = 1; i <= r; i++)
-          cnt[symbol_number(idx.msa_at(i - 1, y - 1)) + 1]++;
-        for (unsigned int i = 1; i < alphabet_size; i++)
-          cnt[i] += cnt[i - 1];
-        for (seg_index i = 1; i <= r; i++) {
-          unsigned int b = symbol_number(idx.msa_at(ak[i] - 1, y - 1));
-          cnt[b]++;
-          a[cnt[b]] = ak[i];
-          if (prev[b] == 0) 
-            e[cnt[b]] = dy;
-          else {
-            // O(alphabet) amortized - very fast in practice
-            e[cnt[b]] = *std::max_element(ek.begin() + prev[b] + 1, ek.begin() + i + 1);
+        for (seg_index i = 1; i <= r; i++){
+          auto c = idx.msa_at(i - 1, y - 1);
+          auto s = symbol_number(c) + 1;
+          cnt[s]++;
+        }
+        int symbols = 0;
+        for (seg_index sym = 1; sym <= alphabet_size; sym++)
+          if(cnt[sym] > 0)
+            symbols++;
+        if (y == 1 or symbols > 1) {
+          // There is at least one new divergence => height change
+          // Recompute pBWT arrays
+          prev.assign(prev.size(), 0);
+          tk.assign(tk.size(), 0);
+          sk[++dy] = y;
+          // Counting sort
+          for (unsigned int i = 1; i < alphabet_size; i++)
+            cnt[i] += cnt[i - 1];
+          for (seg_index i = 1; i <= r; i++) {
+            unsigned int b = symbol_number(idx.msa_at(ak[i] - 1, y - 1));
+            cnt[b]++;
+            a[cnt[b]] = ak[i];
+            if (prev[b] == 0) 
+              e[cnt[b]] = dy;
+            else {
+              // O(alphabet) amortized - very fast in practice
+              e[cnt[b]] = *std::max_element(ek.begin() + prev[b] + 1, ek.begin() + i + 1);
+            }
+            prev[b] = i;
           }
-          prev[b] = i;
-        }
-        for (seg_index i = 1; i <= r; i++) {
-          ak[i] = a[i];
-        }
-        // Calculate frequency array
-        for (seg_index i = 1; i <= r; i++) {
-          tk[e[i]]++;
-        }
-        // Shrink arrays sk and tk, array a acts as tmp
-        seg_index j = 1;
-        for (seg_index i = 1; i <= dy; i++) {
-          if (tk[i] != 0) {
-            a[i] = j;
-            sk[j] = sk[i];
-            tk[j] = tk[i];
-            j++;
+          for (seg_index i = 1; i <= r; i++) {
+            ak[i] = a[i];
+          }
+          // Calculate frequency array
+          for (seg_index i = 1; i <= r; i++) {
+            tk[e[i]]++;
+          }
+          // Shrink arrays sk and tk, array a acts as tmp
+          seg_index j = 1;
+          for (seg_index i = 1; i <= dy; i++) {
+            if (tk[i] != 0) {
+              a[i] = j;
+              sk[j] = sk[i];
+              tk[j] = tk[i];
+              j++;
+            }
+          }
+          dy = j - 1;
+          // Fix ek array
+          for (seg_index i = 1; i <= r; i++) {
+            ek[i] = a[e[i]];
+          }
+          // Calculate heights of extensions
+          for(seg_index i = 1; i <= dy; i++){
+            tk[dy - i] += tk[dy - i + 1];
           }
         }
-        dy = j - 1;
-        // Fix ek array
-        for (seg_index i = 1; i <= r; i++) {
-          ek[i] = a[e[i]];
+        else {
+          // Update last element of sk for first row divergence
+          if (tk[dy] > 1){
+            dy++;
+          }
+          sk[dy] = y;
+          ek[1] = dy;
+          tk[dy] = 1;
         }
-        // Calculate meaningul extensions from pbwt arrays
-        for(seg_index i = 1; i <= dy; i++){
-          tk[dy - i] += tk[dy - i + 1];
-        }
+        // Compute meaningful extensions
         vector<pair<seg_index, seg_index>> L_y; 
         for(seg_index i = 0; i < dy; i++){
           if(y - sk[dy - i] + 1 >= L and y - sk[dy - i] + 1 <= U)
