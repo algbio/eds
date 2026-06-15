@@ -7,8 +7,10 @@
 #include <iostream>
 #include <numeric>
 #include <algorithm>
+#include <optional>
 #include "segment.hpp"
 #include "msa_chunker.hpp"
+#include "rmq.hpp"
 
 using std::vector;
 using std::array;
@@ -23,20 +25,29 @@ namespace pbwt {
   typedef msa_chunker::msa_chunker msa_t;
   typedef segment::seg_index seg_index;
 
+  enum MaxRange {
+    NAIVE,
+    RECURSIVE,
+    RMQ
+  };
+
+  // Range maximum algorithm
+  inline constexpr enum MaxRange max_range = NAIVE;
+
   class pbwt {
     private:
       // Arrays for current column 1-based indexing
-      vector<unsigned long long> ak;
-      vector<unsigned long long> sk;
-      vector<unsigned long long> tk;
-      vector<unsigned long long> ek;
+      vector<seg_index> ak;
+      vector<seg_index> sk;
+      vector<seg_index> tk;
+      vector<seg_index> ek;
       // Counting sort arrays
-      vector<unsigned long long> cnt;
-      vector<unsigned long long> prev;
+      vector<seg_index> cnt;
+      vector<seg_index> prev;
       // Extra space
       seg_index dy; // size of sk
-      vector<unsigned long long> a;
-      vector<unsigned long long> e;
+      vector<seg_index> a;
+      vector<seg_index> e;
       // Alphabet
       array<int, 256> alphabet = [] {
         array<int, 256> alph{};
@@ -73,6 +84,14 @@ namespace pbwt {
         }
 
         return alphabet[s];
+      }
+      // Recursive function for range max
+      seg_index max_ek(seg_index j, seg_index i) {
+        if (j != i) {
+          ek[j] = std::max(ek[j], max_ek(ak[j], i));
+          ak[j] = i + 1;
+        }
+        return ek[j];
       }
     public:
       // Singleton pattern
@@ -114,6 +133,11 @@ namespace pbwt {
           prev.assign(prev.size(), 0);
           tk.assign(tk.size(), 0);
           sk[++dy] = y;
+          // RMQ for max ek
+          std::optional<rmq<seg_index>> rm;
+          if constexpr (max_range == RMQ) {
+            rm.emplace(ek);
+          }
           // Counting sort
           for (unsigned int i = 1; i < alphabet_size; i++)
             cnt[i] += cnt[i - 1];
@@ -121,11 +145,23 @@ namespace pbwt {
             unsigned int b = symbol_number(idx.msa_at(ak[i] - 1, y - 1));
             cnt[b]++;
             a[cnt[b]] = ak[i];
+            if constexpr (max_range == RECURSIVE) {
+              ak[i] = i + 1;
+            }
             if (prev[b] == 0) 
               e[cnt[b]] = dy;
             else {
-              // O(alphabet) amortized - very fast in practice
-              e[cnt[b]] = *std::max_element(ek.begin() + prev[b] + 1, ek.begin() + i + 1);
+              // Calculate the range maximum 
+              if constexpr (max_range == NAIVE) {
+                // O(alphabet) amortized - very fast in practice
+                e[cnt[b]] = *std::max_element(ek.begin() + prev[b] + 1, ek.begin() + i + 1);
+              } else if constexpr (max_range == RECURSIVE) {
+                // O(log alphabet) - solution from the paper
+                e[cnt[b]] = max_ek(prev[b] + 1, i);
+              } else {
+                // RMQ O(1) - best complexity but longer construction
+                e[cnt[b]] = rm->query(prev[b] + 1, i);
+              }
             }
             prev[b] = i;
           }

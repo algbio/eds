@@ -36,3 +36,10 @@ experiments/chr19/input/chr19_100.aligned.uppercase.fa
 experiments/chr19/input/msa.fa.fai
 experiments/chr19/output
 experiments/chr19/pbwt_output
+
+experiments/pbwt/input/covid_10000.fa.gz 
+experiments/pbwt/input/covid_100000.fa.gz 
+experiments/pbwt/output
+experiments/pbwt/mincard-naive
+experiments/pbwt/mincard-recursive
+experiments/pbwt/mincard-rmq
