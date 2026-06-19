@@ -75,6 +75,9 @@ int main(int argc, char* argv[]) {
     bool use_pbwt = false;
     app.add_flag("--pbwt", use_pbwt, "Compute meaningful extensions using positional Burrows-Wheeler Transform");
 
+    bool column_major = false;
+    app.add_flag("--column-major", column_major, "Read msa in column-major format for faster column streaming");
+
     try {
       app.parse(argc, argv);
     } catch (const CLI::ParseError &e) {
@@ -89,7 +92,13 @@ int main(int argc, char* argv[]) {
       return 1;
     }
 
-    msa_chunker::msa_chunker idx(inputfile, U, verbose);
+    std::unique_ptr<msa_chunker::msa_chunker> storage;
+    if (column_major)
+        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U);
+    else
+        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose);
+    msa_chunker::msa_chunker& idx = *storage;
+
     const int r = idx.get_rows();
     const int c = idx.get_cols();
     cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;

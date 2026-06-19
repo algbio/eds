@@ -3,43 +3,26 @@ test/*.eds
 test/*.gfa
 test/*.fai
 
-experiments/e_coli_sim/input/e_coli_K-12_MG1655.fasta
-experiments/e_coli_sim/input/e_coli_K-12_MG1655_dataset.zip
-experiments/e_coli_sim/input/msa.fa
-experiments/e_coli_sim/input/msa.fa.fai
-experiments/e_coli_sim/input/msa.unaligned.fa
-experiments/e_coli_sim/input/msa.treefile
-experiments/e_coli_sim/input/msa.treefile.log
+experiments/e_coli_sim/input/*
+!experiments/e_coli_sim/input/.gitkeep
 experiments/e_coli_sim/output
 experiments/e_coli_sim/pbwt_output
 
-experiments/covid/input/covid_100.fa.gz
-experiments/covid/input/covid_1000.fa.gz
-experiments/covid/input/covid_10000.fa.gz
-experiments/covid/input/covid_100000.fa.gz
-experiments/covid/input/reference.fa
-experiments/covid/input/sample_100.acc
-experiments/covid/input/sample_1000.acc
-experiments/covid/input/sample_10000.acc
-experiments/covid/input/sample_100000.acc
-experiments/covid/input/viralmsa_100/
-experiments/covid/input/viralmsa_1000/
-experiments/covid/input/viralmsa_10000/
-experiments/covid/input/viralmsa_100000/
+experiments/covid/input/*
+!experiments/covid/input/.gitkeep
 experiments/covid/output
 experiments/covid/pbwt_output
 
-experiments/chr19/input/chr19_100.aligned.fa.xz.00
-experiments/chr19/input/chr19_100.aligned.fa.xz.02
-experiments/chr19/input/chr19_100.aligned.fa.xz.01
-experiments/chr19/input/chr19_100.aligned.uppercase.fa
-experiments/chr19/input/msa.fa.fai
+experiments/chr19/input/*
+!experiments/chr19/input/.gitkeep
 experiments/chr19/output
 experiments/chr19/pbwt_output
 
-experiments/pbwt/input/covid_10000.fa.gz 
-experiments/pbwt/input/covid_100000.fa.gz 
+experiments/pbwt/input/*
+!experiments/pbwt/input/.gitkeep
 experiments/pbwt/output
 experiments/pbwt/mincard-naive
 experiments/pbwt/mincard-recursive
 experiments/pbwt/mincard-rmq
+
+experiments/transpose/output
