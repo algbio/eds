@@ -72,6 +72,12 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     app.add_flag("-v,--verbose", verbose, "Print running times");
 
+    bool use_pbwt = false;
+    app.add_flag("--pbwt", use_pbwt, "Compute meaningful extensions using positional Burrows-Wheeler Transform");
+
+    bool column_major = false;
+    app.add_flag("--column-major", column_major, "Read msa in column-major format for faster column streaming");
+
     try {
       app.parse(argc, argv);
     } catch (const CLI::ParseError &e) {
@@ -81,8 +87,18 @@ int main(int argc, char* argv[]) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
       return 1;
     }
+    if(use_pbwt and !gaps_as_symbols){
+      cerr << "pBWT only works with the gaps as symbols strategy! Add flag --gaps-as-symbols" << endl;
+      return 1;
+    }
 
-    msa_chunker::msa_chunker idx(inputfile, U, verbose);
+    std::unique_ptr<msa_chunker::msa_chunker> storage;
+    if (column_major)
+        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U);
+    else
+        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose);
+    msa_chunker::msa_chunker& idx = *storage;
+
     const int r = idx.get_rows();
     const int c = idx.get_cols();
     cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
@@ -142,7 +158,7 @@ int main(int argc, char* argv[]) {
       if (preprocess) {
         cerr << "Computing the meaningful extensions..." << flush;
         auto start = high_resolution_clock::now();
-        L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols);
+        L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<milliseconds>(stop - start);
         cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
@@ -151,7 +167,7 @@ int main(int argc, char* argv[]) {
       cerr << "Computing the minimum-cardinality segmentation..." << flush;
       auto start = high_resolution_clock::now();
       seg_index mincard;
-      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, L_y, perfect_columns);
+      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       if (mincard != std::numeric_limits<seg_index>::max()) {

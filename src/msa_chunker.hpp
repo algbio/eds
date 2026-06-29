@@ -22,6 +22,8 @@ using std::min, std::max;
 using std::chrono::high_resolution_clock, std::chrono::duration_cast, std::chrono::milliseconds;
 using std::setprecision;
 using std::filesystem::path, std::filesystem::exists, std::filesystem::last_write_time, std::filesystem::remove;
+using std::runtime_error;
+using std::ifstream;
 
 //#define MSA_CHUNKER_DEBUG
 
@@ -29,11 +31,23 @@ namespace msa_chunker {
   typedef hts_pos_t msa_pos_t; // type for MSA cols, rows index
 
   /*
+   * msa can be read into chunks either through a fasta file or a txt file (column major msa)
+   */
+  class msa_chunker {
+    public:
+      virtual ~msa_chunker() = default;
+      virtual msa_pos_t get_rows() = 0;
+      virtual msa_pos_t get_cols() = 0;
+      virtual string msa_substr(msa_pos_t row, msa_pos_t col, msa_pos_t length) = 0;
+      virtual char msa_at(msa_pos_t row, msa_pos_t col) = 0;
+  };
+
+  /*
    * load a FASTA MSA with htslib into memory chunk by chunk, but the chunking
    *   is done automatically, hoping for a linear forward scan of the MSA; since
    *   we expect all rows to be processed, we only consider vertical MSA slices
    */
-  class msa_chunker {
+  class fasta_chunker : public msa_chunker {
     private:
       constexpr static msa_pos_t MIN_CHUNK_COLS = 131072;
 
@@ -71,12 +85,12 @@ namespace msa_chunker {
       }
 
     public:
-      msa_chunker() = delete;
+      fasta_chunker() = delete;
 
       /*
        * index a given (gzipped) FASTA file
        */
-      msa_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose) {
+      fasta_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose) {
         max_chunk_cols = max(max_qlen, MIN_CHUNK_COLS);
         path fastap(fastapath);
         path fastaindex(fastapath + ".fai");
@@ -139,15 +153,15 @@ namespace msa_chunker {
         cols = c;
       }
 
-      msa_pos_t get_rows() {
+      msa_pos_t get_rows() override {
         return rows;
       }
 
-      msa_pos_t get_cols() {
+      msa_pos_t get_cols() override {
         return cols;
       }
 
-      string msa_substr(msa_pos_t row, msa_pos_t col, msa_pos_t length) {
+      string msa_substr(msa_pos_t row, msa_pos_t col, msa_pos_t length) override {
         assert(0 <= row and row < rows and 0 <= col and col < cols and col + length <= cols);
         if (length <= max_chunk_cols) {
           load_chunk(col, length);
@@ -166,8 +180,104 @@ namespace msa_chunker {
         }
       }
 
-      ~msa_chunker() {
+      // Return the character at MSA[row, col]
+      char msa_at(msa_pos_t row, msa_pos_t col) override {
+        assert(0 <= row and row < rows and 0 <= col and col < cols);
+        load_chunk(col, 1);
+        return msa_chunk[row][col - chunk_start];
+      }
+
+      ~fasta_chunker() {
         fai_destroy(idx);
+      }
+  };
+
+  /*
+   * load a column major msa into memory chunk by chunk, should speed up column streaming
+   */
+  class column_chunker : public msa_chunker {
+    private:
+      constexpr static msa_pos_t MIN_CHUNK_COLS = 131072;
+
+      msa_pos_t rows, cols, max_chunk_cols;
+      msa_pos_t chunk_start = std::numeric_limits<msa_pos_t>::max(), chunk_cols = -1;
+      vector<char> msa_transposed_chunk;
+      vector<char> msa_chunk; // used for faster msa_substr
+      std::streampos matrix_start;
+      ifstream msa_file;
+      
+      /*
+       * explicitly load chunk [startcol..startcol+length) into memory
+       */
+      void load_chunk(msa_pos_t startcol, msa_pos_t length, bool transpose) {
+        assert(length <= max_chunk_cols);
+        if (chunk_start <= startcol and startcol + length <= chunk_start + chunk_cols) {
+          return;
+        }
+        
+        // Read chunk from transposed msa file
+        chunk_start = startcol;
+        chunk_cols = min(max_chunk_cols, cols - chunk_start);
+        std::streampos col_pos = matrix_start + chunk_start * (rows + 1);
+        msa_file.seekg(col_pos);
+        msa_transposed_chunk.resize(chunk_cols * (rows + 1));
+        msa_file.read(msa_transposed_chunk.data(), chunk_cols * (rows + 1));
+
+        // Compute original row-major chunk
+        if(transpose || chunk_start == 0) {
+          msa_chunk.resize(rows * chunk_cols);
+          for (msa_pos_t i = 0; i < rows; i++) {
+            for (msa_pos_t j = 0; j < chunk_cols; j++) {
+              msa_chunk[i * chunk_cols + j] = msa_transposed_chunk[j * (rows + 1) + i];
+            }    
+          }
+        }
+      }
+
+    public:
+      column_chunker() = delete;
+
+      column_chunker(const string &msapath, const msa_pos_t max_qlen) {
+        max_chunk_cols = max(MIN_CHUNK_COLS, max_qlen);
+        msa_file = ifstream(msapath, std::ios::binary);
+        if (!msa_file) {
+          throw runtime_error("ERROR: msa file could not be opened");
+        }
+        // Read msa dimensions
+        string header, extra;
+        getline(msa_file, header);
+        std::istringstream iss(header);
+        if (!(iss >> cols >> rows) || (iss >> extra)) {
+          throw runtime_error("ERROR: first line must contain exactly two integers: columns and rows");
+        }
+        matrix_start = msa_file.tellg();
+      }
+
+      msa_pos_t get_rows() override {
+        return rows;
+      }
+      
+      msa_pos_t get_cols() override {
+        return cols;
+      }
+      
+      // Return the sequence at MSA[row, col..col+length]
+      string msa_substr(msa_pos_t row, msa_pos_t col, msa_pos_t length) override {
+        assert(0 <= row and row < rows and 0 <= col and col < cols and col + length <= cols);
+        load_chunk(col, length, true);
+        auto msa_row = msa_chunk.begin() + row * chunk_cols;
+        return string(msa_row + col - chunk_start, msa_row + col - chunk_start + length);
+      }
+
+      // Return the character at MSA[row, col]
+      char msa_at(msa_pos_t row, msa_pos_t col) override {
+        assert(0 <= row and row < rows and 0 <= col and col < cols);
+        load_chunk(col, 1, false);
+        return msa_transposed_chunk[(col - chunk_start) * (rows + 1) + row];
+      }
+
+      ~column_chunker(){
+        msa_file.close();
       }
   };
 } // msa_chunker
