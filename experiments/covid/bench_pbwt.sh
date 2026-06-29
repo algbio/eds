@@ -2,6 +2,7 @@
 set -euo pipefail
 thisfolder=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 cd "$thisfolder"
+export LC_NUMERIC="en_US.UTF-8"
 
 mincard="$thisfolder/../../mincard"
 inputmsa="$thisfolder/input/covid_10000.fa.gz"

@@ -65,7 +65,7 @@ namespace pbwt {
       // Singleton constructor
       pbwt(const seg_index r): 
         ak(r + 1), sk(r + 2), tk(r + 2), ek(r + 1, 0), 
-        dy(0), a(r + 1), e(r + 1)
+        dy(0), a(r + 2), e(r + 1)
       {
         cnt.resize(alphabet_size + 1);
         prev.resize(alphabet_size);

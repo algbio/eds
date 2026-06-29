@@ -2,6 +2,7 @@
 set -euo pipefail
 thisfolder=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 cd "$thisfolder"
+export LC_NUMERIC="en_US.UTF-8"
 
 mincard="$thisfolder/../../mincard"
 
