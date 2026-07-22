@@ -47,8 +47,14 @@ int main(int argc, char* argv[]) {
 
     seg_index U;
     CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length")
-      ->default_val(31)
+      ->default_val(0)
       ->expected(1, numeric_limits<int>::max());
+
+    bool min_size = false;
+    app.add_flag("--min-size", min_size, "Minimize the size of the segmentation instead of the cardinality");
+
+    bool stats = false;
+    app.add_flag("--stats", stats, "Calculate segmentation statistics");
 
     bool allow_perfect_segments = false;
     app.add_flag("-p,--perfect-segments", allow_perfect_segments, "In normal mode, additionally consider perfect segments of any length (recommended). With --trivial-vertical and --trivial-horizontal, use the maximal perfect segments and the trivial strategy in-between.");
@@ -82,6 +88,22 @@ int main(int argc, char* argv[]) {
       app.parse(argc, argv);
     } catch (const CLI::ParseError &e) {
       return app.exit(e);
+    }
+    // No U value specified by the user
+    if (U == 0) {
+      if (min_size) {
+        if (gaps_as_symbols) {
+          // Implicit upper bound that keeps the segmentation optimal
+          U = L * 2 - 1;
+        }
+        else {
+          // Arbitrary upper bound so the algorithm is practical
+          U = L * 4 - 1; 
+        }
+      } else {
+        // Default upper bound for min-card
+        U = 31;
+      }
     }
     if (L > U) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
@@ -222,6 +244,20 @@ int main(int argc, char* argv[]) {
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+    }
+
+    // Display segmentation statistics (min/max/avg segment length)
+    if (stats and segmentation.size() > 0) {
+      cerr << "Segmentation statistics: ";
+      int min_segment = c;
+      int max_segment = 0;      
+      for (auto& segment: segmentation) {
+        int segment_size = segment.second - segment.first + 1;
+        min_segment = min(min_segment, segment_size);
+        max_segment = max(max_segment, segment_size);
+      }
+      double avg_segment = double(c) / double(segmentation.size());
+      cerr << min_segment << " minimum length, " << max_segment << " maximum length, " << std::setprecision (2) << std::fixed << avg_segment << " average length" << endl;
     }
 
     return 0;
