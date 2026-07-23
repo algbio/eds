@@ -10,7 +10,7 @@
 #include "trie.hpp"
 #include "RMaxQTree.h" // i_type
 #include "msa_chunker.hpp"
-#include "pbwt.hpp"
+#include "pbwt.h"
 
 using std::vector;
 using std::pair;
@@ -34,9 +34,10 @@ namespace algo {
       const bool gaps_as_symbols,
       const bool use_pbwt
       ) {
+    static pbwt pb = pbwt(r);
     if (use_pbwt) {
-      pbwt::pbwt& PBWT = pbwt::pbwt::instance(r);
-      return PBWT.compute_meaningful_extensions(idx, r, c, L, U, y);
+      pb.next(idx.get_column(y - 1));
+      return pb.meaningful_extensions(L, U);
     }
 
     vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing

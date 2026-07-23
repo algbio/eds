@@ -116,10 +116,14 @@ int main(int argc, char* argv[]) {
 
     std::unique_ptr<msa_chunker::msa_chunker> storage;
     if (column_major)
-        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U);
+        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U, verbose);
     else
         storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose);
     msa_chunker::msa_chunker& idx = *storage;
+    idx.set_row_major(true);
+    if (use_pbwt) {
+      idx.set_column_major(true);
+    }
 
     const int r = idx.get_rows();
     const int c = idx.get_cols();
