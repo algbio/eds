@@ -7,6 +7,7 @@
 #include <iomanip>
 
 #include "algo.hpp"
+#include "minsize.hpp"
 #include "segment.hpp"
 #include "msa_chunker.hpp"
 #include "CLI11.hpp"
@@ -190,14 +191,20 @@ int main(int argc, char* argv[]) {
         cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
       }
 
-      cerr << "Computing the minimum-cardinality segmentation..." << flush;
       auto start = high_resolution_clock::now();
-      seg_index mincard;
-      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
+      seg_index minval; // cardinality or size
+      if (min_size) {
+        cerr << "Computing the minimum-size segmentation..." << flush;
+        minsize::minsize alg(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
+        tie(minval, segmentation) = alg.segment();
+      } else {
+        cerr << "Computing the minimum-cardinality segmentation..." << flush;
+        tie(minval, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
+      }
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      if (mincard != std::numeric_limits<seg_index>::max()) {
-        cerr << " done: " << segmentation.size() << " segments/ED words, " << mincard << " cardinality" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (minval != std::numeric_limits<seg_index>::max()) {
+        cerr << " done: " << segmentation.size() << " segments/ED words, " << minval << (min_size ? " size" : " cardinality") << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
       } else {
         cerr << " done: no valid segmentation found!" << endl;
         return 1;
