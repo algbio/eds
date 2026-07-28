@@ -4,12 +4,24 @@
 #include "segment.hpp"
 #include "msa_chunker.hpp"
 #include "algo.hpp"
+#include "RMaxQTree.h"
+
+#include <numeric>
 
 using std::vector, std::tie;
 
 namespace minsize {
   typedef msa_chunker::msa_chunker msa_t;
   typedef segment::seg_index seg_index;
+
+  // Which data structure to use for the sliding window minimum range queries
+  enum MinRange {
+    RING, // Naive ring buffer
+    TREE, // RMaxQTree
+    QUEUE // RMQueue
+  };
+
+  inline constexpr enum MinRange min_range = TREE;
 
   // Class for solving the min-L-size segmentation problem 
   class minsize {
@@ -20,65 +32,109 @@ namespace minsize {
       const seg_index U; 
       const bool gaps_as_symbols;
       const bool use_pbwt;
-      // Backtracking
+      // n[y] is min size ending at column y
+      vector<seg_index> n;
+      // Traceback
       vector<seg_index> back;
-      seg_index n_y;
       // Min query
-      vector<vector<seg_index>> m;
+      vector<vector<seg_index>> ring;
+      vector<RMaxQTree> rmqtree;
+      vector<i_type> keys;
       // Returns the index and size for the min size of M[height][left..right]
       pair<seg_index, seg_index> min_query(const seg_index height, const seg_index left, const seg_index right) {
         const seg_index l = (max(left - 1, seg_index(0))) % U;
-        const seg_index r = (right - 1) % U;
+        const seg_index r = (max(right - 1, seg_index(0))) % U;
         seg_index minq = left == 0 ? 0 : numeric_limits<seg_index>::max();
         seg_index x = 0;
         // Naive ring buffer
-        if (l <= r) {
-          for (seg_index j = l; j <= r; j++) {
-            if (minq > m[height - 1][j]) {
-              minq = m[height - 1][j];
-              x = left + j - l;
+        if constexpr (min_range == RING) {
+          if (l <= r) {
+            for (seg_index j = l; j <= r; j++) {
+              if (minq > ring[height - 1][j]) {
+                minq = ring[height - 1][j];
+                x = left + j - l;
+              }
+            }
+          } else {
+            for (seg_index j = l; j < U; j++) {
+              if (minq > ring[height - 1][j]) {
+                minq = ring[height - 1][j];
+                x = left + j - l;
+              }
+            }
+            for (seg_index j = 0; j <= r; j++) {
+              if (minq > ring[height - 1][j]) {
+                minq = ring[height - 1][j];
+                x = left + j + U - l - 1;
+              }
             }
           }
-        } else {
-          for (seg_index j = l; j < U; j++) {
-            if (minq > m[height - 1][j]) {
-              minq = m[height - 1][j];
-              x = left + j - l;
+        }
+        if constexpr (min_range == TREE) {
+          if (l <= r) {
+            auto [x1, minq1] = rmqtree[height - 1].query(l + 1, r + 1);
+            minq1 *= -1;
+            x1--;
+            if (minq1 < minq) {
+              minq = minq1;
+              x = left + x1 - l;
             }
-           }
-          for (seg_index j = 0; j <= r; j++) {
-            if (minq > m[height - 1][j]) {
-              minq = m[height - 1][j];
-              x = left + j + U - l - 1;
+          } else {
+            auto [x1, minq1] = rmqtree[height - 1].query(l + 1, U);
+            minq1 *= -1;
+            x1--;
+            auto [x2, minq2] = rmqtree[height - 1].query(1, r + 1);
+            minq2 *= -1;
+            x2--;
+            if (minq1 < minq) {
+              minq = minq1;
+              x = left + x1 - l;
+            }
+            if (minq2 < minq) {
+              minq = minq2;
+              x = left + x2 + U - l - 1;
             }
           }
+        }
+        if constexpr (min_range == QUEUE) {
+          cerr << "Not yet implemented";
         }
         return {x, minq};
       }
        // Updates the min query data structure for row h, column y
       void update(const seg_index h, const seg_index y, const seg_index value) {
         // Naive ring buffer
-        seg_index j = (y - 1) % U;
-        m[h - 1][j] = value;
+        if constexpr (min_range == RING) {
+          seg_index j = (y - 1) % U;
+          ring[h - 1][j] = value;
+        }
+        if constexpr (min_range == TREE) {
+          seg_index j = (y - 1) % U;
+          rmqtree[h - 1].update(j + 1, j + 1, -value);
+        }
+        if constexpr (min_range == QUEUE) {
+          cerr << "Not yet implemented";
+        }
       }
       // Calculate the min-L-size for the next column (y is 1-index) given meaningful left extensions L_yy
       void next(const seg_index y, const vector<pair<seg_index, seg_index>> *L_yy) {
-        n_y = numeric_limits<seg_index>::max();
         for (size_t j = 0; j + 1 < L_yy->size(); j++) {
           seg_index height = (*L_yy)[j].second;
           seg_index left = (*L_yy)[j + 1].first;
           seg_index right = (*L_yy)[j].first - 1;
-          seg_index x, s;
-          tie(x, s) = min_query(height, left, right); 
-          // if (y < 15)
-          //   cerr << "y = " << y << " h = " << height << " l = " << left << " r = " << right << " x = " << x << " s = " << s << " n_y = " << n_y << " small = " <<  height * y + s << endl;
-          if (n_y > height * y + s && height * y + s > 0) {
-            n_y = height * y + s;
+          seg_index x, s, x2, s2;
+
+          tie(x, s) = (left == right) 
+            ? pair<seg_index, seg_index>{ left, n[left] - height * left } 
+            : min_query(height, left, right);
+
+          if (n[y] > height * y + s && height * y + s > 0) {
+            n[y] = height * y + s;
             back[y] = x;
           }
         }
         for (seg_index height = 1; height <= r; height++) {
-          update(height, y, n_y - height * y);
+          update(height, y, n[y] - height * y);
         }
       }
     public:
@@ -91,8 +147,25 @@ namespace minsize {
         const bool gaps_as_symbols,
         const bool use_pbwt
       ): idx(idx), r(r), c(c), L(L), U(U), gaps_as_symbols(gaps_as_symbols), use_pbwt(use_pbwt), 
-        n_y(numeric_limits<seg_index>::max()), back(c + 1, 0),
-        m(r, vector<seg_index>(U, 0)) {}
+        n(c + 1, numeric_limits<seg_index>::max()), back(c + 1, 0) {
+          n[0] = 0;
+          if constexpr (min_range == RING) {
+            ring = vector<vector<seg_index>>(r, vector<seg_index>(U, 0));
+          } 
+          if constexpr (min_range == TREE) {
+            rmqtree.resize(r);
+            keys.resize(U + 1);
+            for (i_type i = 0; i <= U; ++i)
+              keys[i] = i;
+            for(auto &rmq: rmqtree) {
+              rmq.fillRMaxQTree(keys.data(), U + 1);
+              rmq.update(0, 0, 0);
+            }
+          }
+          if constexpr (min_range == QUEUE) {
+            cerr << "Not yet implemented";
+          }
+        }
       /* find the minimum-size segmentation of MSA[1..r][1..c] (indexed by
        *   idx) respecting lower bound L, upper bound U, gaps_as_symbols strategy,
        *   optionally given the meaningful left extensions L_y
@@ -124,7 +197,7 @@ namespace minsize {
         }
         reverse(segments.begin(), segments.end());
 
-        return {n_y, segments};
+        return {n[c], segments};
       }
   
   };

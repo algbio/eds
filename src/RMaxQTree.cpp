@@ -24,10 +24,10 @@ void RMaxQTree::init(i_type node, i_type b, i_type e, i_type *keys) {
 		init(2 * node, b, (b + e) / 2, keys);
 		init(2 * node + 1, (b + e) / 2 + 1, e, keys);
 		// propagate up
-		if (tree[2 * node].Cj >= tree[2 * node + 1].Cj)
-			tree[node] = tree[2 * node];
-		else
+		if (tree[2 * node + 1].Cj >= tree[2 * node].Cj)
 			tree[node] = tree[2 * node + 1];
+		else
+			tree[node] = tree[2 * node];
 	}
 }
 	
@@ -49,10 +49,10 @@ void RMaxQTree::updateTree(i_type key, i_type j, i_type Cj, i_type node, i_type 
 		else
 			updateTree(key, j, Cj, 2 * node + 1, mid + 1, e);
 		// And propagate back up
-		if (tree[2 * node].Cj > tree[2 * node + 1].Cj) // NR: propagate right value
-			tree[node] = tree[2 * node];
-		else
+		if (tree[2 * node + 1].Cj > tree[2 * node].Cj) // NR: propagate left value
 			tree[node] = tree[2 * node + 1];
+		else
+			tree[node] = tree[2 * node];
 	}
 }
 
@@ -73,10 +73,10 @@ std::pair<i_type,i_type> RMaxQTree::queryTree(i_type i, i_type j, i_type node, i
 		return right;
 	if (right.second == negative_infinity)
 		return left;
-	if (left.second <= right.second) // NR: prefer higher key
-		return right;
-	else
+	if (right.second <= left.second) // NR: prefer lower key
 		return left;
+	else
+		return right;
 }
 
 // Empty constructor for creating arrays
