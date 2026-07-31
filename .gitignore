@@ -1,4 +1,5 @@
 mincard
+test_rmqueue
 test/*.eds
 test/*.gfa
 test/*.fai
