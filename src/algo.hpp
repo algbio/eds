@@ -8,7 +8,7 @@
 
 #include "segment.hpp"
 #include "trie.hpp"
-#include "RMaxQTree.h" // i_type
+#include "rmqueue.h"
 #include "msa_chunker.hpp"
 #include "pbwt.h"
 
@@ -253,20 +253,16 @@ namespace algo {
     seg_index perfect_first = -1, perfect_m = numeric_limits<seg_index>::max();
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
 
-    RMaxQTree rmq; // TODO use range min query data structure
-    vector<i_type> keys(c + 1); // keys is passed to rmq
-    for (i_type i = 0; i <= c; ++i)
-      keys[i] = i;
-    rmq.fillRMaxQTree(keys.data(), c + 1);
-
+    RMQueue rmq(U + 1);
     m[0] = 0;
-    rmq.update(0, 0, 0);
+    rmq.push(0);
+
     if (allow_perfect_segments) {
       perfect_m = numeric_limits<seg_index>::max();
       perfect_first = -1;
     }
 
-    for (i_type y = 1; y <= c; ++y) {
+    for (seg_index y = 1; y <= c; ++y) {
       m[y] = numeric_limits<seg_index>::max();
 
       // compute L_y if it was not given in input
@@ -284,14 +280,22 @@ namespace algo {
 
       // optimal solution using L_y
       for (size_t j = 0; j + 1 < L_yy->size(); ++j) {
-        i_type l = (*L_yy)[j + 1].first;
-        i_type r = (*L_yy)[j].first - 1;
+        seg_index l = (*L_yy)[j + 1].first;
+        seg_index r = (*L_yy)[j].first - 1;
         if (l > r) continue;
 
-        auto [x, neg_mx] = rmq.query(l, r);
-        if (x == -1) continue;
-        if (neg_mx == -numeric_limits<seg_index>::max()) continue;
-        i_type candidate = (*L_yy)[j].second + m[x];
+        seg_index x = l;
+        if (L > 1) {
+          // m_y is not monotone non-decreasing
+          seg_index queue_col = std::max(0LL, y - U);
+          x = rmq.query(l - queue_col, r - queue_col);
+          auto mx = rmq.get(x);
+          
+          if (x == -1) continue;
+          if (mx == numeric_limits<seg_index>::max()) continue;
+          x += queue_col;
+        }
+        seg_index candidate = (*L_yy)[j].second + m[x];
         assert(candidate >= 0);
 
         if (candidate < m[y]) {
@@ -308,7 +312,9 @@ namespace algo {
         }
       }
 
-      rmq.update(y, y, -m[y]);
+      rmq.push(m[y]);
+      if (y >= U)
+        rmq.pop();
 
       // update perfect-segment run
       if (allow_perfect_segments) {
@@ -324,7 +330,7 @@ namespace algo {
 
     // trace back
     vector<pair<seg_index, seg_index>> segments;
-    for (i_type pos = c; pos > 0; pos = back[pos]) {
+    for (seg_index pos = c; pos > 0; pos = back[pos]) {
       segments.emplace_back(back[pos] + 1, pos);
     }
     reverse(segments.begin(), segments.end());
