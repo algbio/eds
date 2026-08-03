@@ -236,7 +236,6 @@ int calculate_level(vector<int>& parent, int node) {
 }
 
 void RMQueue::compute_lca() {
-  cout << "Computing LCA b = " << b << "\n";
   lca.resize(1 << (2 * b));
   vector<int> parent(b + 1, -1);
   vector<int> level(b + 1, -1);
