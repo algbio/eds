@@ -23,8 +23,6 @@ using algo::seg_index, algo::compute_perfect_columns, algo::compute_all_meaningf
 typedef segment::seg_size_t seg_size_t;
 using segment::segment_stream_gfa, segment::segment_stream_eds, segment::segment_stream_no_output;
 
-bool verbose = false;
-
 int main(int argc, char* argv[]) {
     CLI::App app{"mincard version " + string(VERSION) + " — build Elastic Degenerate Strings (EDSes) from multiple sequence alignments in FASTA format"};
     argv = app.ensure_utf8(argv);
@@ -79,6 +77,9 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     app.add_flag("-v,--verbose", verbose, "Print running times");
 
+    bool quiet = false;
+    app.add_flag("-q,--quiet", quiet, "Print only cardinality and size");
+
     bool use_pbwt = false;
     app.add_flag("--pbwt", use_pbwt, "Compute meaningful extensions using positional Burrows-Wheeler Transform");
 
@@ -114,12 +115,22 @@ int main(int argc, char* argv[]) {
       cerr << "pBWT only works with the gaps as symbols strategy! Add flag --gaps-as-symbols" << endl;
       return 1;
     }
+    if (verbose and quiet) {
+      cerr << "Quitet flag is ignored if verbose is set" << endl;
+    }
+    int verbosity = 1;
+    if (quiet) {
+      verbosity = 0;
+    }
+    if (verbose) {
+      verbosity = 2;
+    }
 
     std::unique_ptr<msa_chunker::msa_chunker> storage;
     if (column_major)
-        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U, verbose);
+        storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U, verbosity);
     else
-        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose);
+        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbosity);
     msa_chunker::msa_chunker& idx = *storage;
     idx.set_row_major(true);
     if (use_pbwt) {
@@ -128,7 +139,9 @@ int main(int argc, char* argv[]) {
 
     const int r = idx.get_rows();
     const int c = idx.get_cols();
-    cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
+    if (verbosity > 0) {
+      cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
+    }
 
     vector<bool> perfect_columns = {};
     if (allow_perfect_segments) {
@@ -137,12 +150,17 @@ int main(int argc, char* argv[]) {
       tie(p, perfect_columns) = compute_perfect_columns(idx, r, c);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" <<((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << "MSA contains " << p << "/" << c << " (" << setprecision(4) << (double) 100 * p / c << "%) perfect columns" 
+             << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      }
     }
 
     vector<pair<seg_index, seg_index>> segmentation; // 1-based segments [x..y]
     if (trivial_segmentation) {
-      cerr << "Computing the S^¦¦¦ segmentation..." << flush;
+      if (verbosity > 0) {
+        cerr << "Computing the S^¦¦¦ segmentation..." << flush;
+      }
       auto start = high_resolution_clock::now();
       segmentation.reserve(c);
       for (seg_index i = 1; i <= c; ++i) {
@@ -157,9 +175,13 @@ int main(int argc, char* argv[]) {
       }
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      }
     } else if (no_segmentation) {
-      cerr << "Computing the S^≡ segmentation..." << flush;
+      if (verbosity > 0) {
+        cerr << "Computing the S^≡ segmentation..." << flush;
+      }
       auto start = high_resolution_clock::now();
       if (!allow_perfect_segments) {
         segmentation.push_back({ 1, c });
@@ -177,34 +199,48 @@ int main(int argc, char* argv[]) {
       }
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      }
     } else {
-      cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
-
+      if (verbosity > 0) {
+        cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
+      }
       vector<vector<pair<seg_index, seg_index>>> L_y;
       if (preprocess) {
-        cerr << "Computing the meaningful extensions..." << flush;
+        if (verbosity > 0) {
+          cerr << "Computing the meaningful extensions..." << flush;
+        }
         auto start = high_resolution_clock::now();
         L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<milliseconds>(stop - start);
-        cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+        if (verbosity > 0) {
+          cerr << " done" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+        }
       }
 
       auto start = high_resolution_clock::now();
       seg_index minval; // cardinality or size
       if (min_size) {
-        cerr << "Computing the minimum-size segmentation..." << flush;
+        if (verbosity > 0) {
+          cerr << "Computing the minimum-size segmentation..." << flush;
+        }
         minsize::minsize alg(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
         tie(minval, segmentation) = alg.segment();
       } else {
-        cerr << "Computing the minimum-cardinality segmentation..." << flush;
+        if (verbosity > 0) {
+          cerr << "Computing the minimum-cardinality segmentation..." << flush;
+        }
         tie(minval, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
       }
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       if (minval != std::numeric_limits<seg_index>::max()) {
-        cerr << " done: " << segmentation.size() << " segments/ED words, " << minval << (min_size ? " size" : " cardinality") << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+        if (verbosity > 0) {
+          cerr << " done: " << segmentation.size() << " segments/ED words, " << minval << (min_size ? " size" : " cardinality") 
+               << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+        }
       } else {
         cerr << " done: no valid segmentation found!" << endl;
         return 1;
@@ -216,10 +252,14 @@ int main(int argc, char* argv[]) {
       ostream *out;
       ofstream outfile;
       if (outputgfafile == "-") {
-        cerr << "Streaming the block graph to stdout..." << flush;
+        if (verbosity > 0) {
+          cerr << "Streaming the block graph to stdout..." << flush;
+        }
         out = &cout;
       } else {
-        cerr << "Streaming the block graph to \"" << outputgfafile << "\"..." << flush;
+        if (verbosity > 0) {
+          cerr << "Streaming the block graph to \"" << outputgfafile << "\"..." << flush;
+        }
         outfile = ofstream(outputgfafile);
         out = &outfile;
       }
@@ -228,16 +268,24 @@ int main(int argc, char* argv[]) {
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      } else {
+        cerr << card << " " << size << endl;
+      }
     }
     if (outputedsfile != "") {
       ostream *out;
       ofstream outfile;
       if (outputedsfile == "-") {
-        cerr << "Streaming the EDS to stdout..." << flush;
+        if (verbosity > 0) {
+          cerr << "Streaming the EDS to stdout..." << flush;
+        }
         out = &cout;
       } else {
-        cerr << "Streaming the EDS to \"" << outputedsfile << "\"..." << flush;
+        if (verbosity > 0) {
+          cerr << "Streaming the EDS to \"" << outputedsfile << "\"..." << flush;
+        }
         outfile = ofstream(outputedsfile);
         out = &outfile;
       }
@@ -246,20 +294,32 @@ int main(int argc, char* argv[]) {
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       outfile.close();
-      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      } else {
+        cerr << card << " " << size << endl;
+      }
     }
     if (outputgfafile == "" and outputedsfile == "") {
-      cerr << "Computing the EDS stats (no output selected)..." << flush;
+      if (verbosity > 0) {
+        cerr << "Computing the EDS stats (no output selected)..." << flush;
+      }
       auto start = high_resolution_clock::now();
       tie(card, size) = segment_stream_no_output(idx, r, c, segmentation);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
-      cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      if (verbosity > 0) {
+        cerr << " done: " << card << " cardinality, " << size << " gap-aware size" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+      } else {
+        cerr << card << " " << size << endl;
+      }
     }
 
     // Display segmentation statistics (min/max/avg segment length)
     if (stats and segmentation.size() > 0) {
-      cerr << "Segmentation statistics: ";
+      if (verbosity > 0) {
+        cerr << "Segmentation statistics: ";
+      }
       int min_segment = c;
       int max_segment = 0;      
       for (auto& segment: segmentation) {
@@ -268,7 +328,11 @@ int main(int argc, char* argv[]) {
         max_segment = max(max_segment, segment_size);
       }
       double avg_segment = double(c) / double(segmentation.size());
-      cerr << min_segment << " minimum length, " << max_segment << " maximum length, " << std::setprecision (2) << std::fixed << avg_segment << " average length" << endl;
+      if (verbosity > 0) {
+        cerr << min_segment << " minimum length, " << max_segment << " maximum length, " << std::setprecision (2) << std::fixed << avg_segment << " average length" << endl;
+      } else {
+        cerr << min_segment << " " << max_segment << " " << std::setprecision (2) << std::fixed << avg_segment << endl;
+      }
     }
 
     return 0;

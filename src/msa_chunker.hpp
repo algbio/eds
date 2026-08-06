@@ -167,7 +167,7 @@ namespace msa_chunker {
       /*
        * index a given (gzipped) FASTA file
        */
-      fasta_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose) {
+      fasta_chunker(const string &fastapath, const msa_pos_t max_qlen, const int verbosity) {
         max_chunk_cols = max(max_qlen, MIN_CHUNK_COLS);
         if(!std::filesystem::is_regular_file(fastapath)){
           throw runtime_error("ERROR: FASTA file could not be found");
@@ -186,36 +186,45 @@ namespace msa_chunker {
 
         if (!exists(fastaindex) or (compressed and !exists(gzip_index))) {
           auto start = high_resolution_clock::now();
-          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\"" : "") << " not found, generating the index" << ((compressed) ? "es" : "") << "..." << flush;
+          if (verbosity > 0) {
+            cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\"" : "") 
+                 << " not found, generating the index" << ((compressed) ? "es" : "") << "..." << flush;
+          }
           if (fai_build3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str()) == -1) {
-            cerr << "\nERROR: failed to create index" << endl;
-            exit(1);
+            throw runtime_error("ERROR:failed to create index");
           }
           auto stop = high_resolution_clock::now();
           auto duration = duration_cast<milliseconds>(stop - start);
-          cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+          if (verbosity > 0) {
+            cerr << " done" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+          }
         } else if (last_write_time(fastaindex) < last_write_time(fastap) or
             (compressed and last_write_time(gzip_index) < last_write_time(fastap))) {
           auto start = high_resolution_clock::now();
-          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\" are" : " is") << " older than MSA, regenerating the index" << ((compressed) ? "es" : "") << "..." << flush;
+          if (verbosity > 0) {
+            cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " or \"" + gzip_index.string() + "\" are" : " is") 
+                 << " older than MSA, regenerating the index" << ((compressed) ? "es" : "") << "..." << flush;
+          }
           remove(fastaindex);
           if (compressed and exists(gzip_index))
             remove(gzip_index);
           if (fai_build3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str()) == -1) {
-            cerr << "\nERROR: failed to create index" << endl;
-            exit(1);
+            throw runtime_error("ERROR:failed to create index");
           }
           auto stop = high_resolution_clock::now();
           auto duration = duration_cast<milliseconds>(stop - start);
-          cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+          if (verbosity > 0) {
+            cerr << " done" << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
+          }
         } else {
-          cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " and \"" + gzip_index.string() + "\"" : "") << " found" << endl;
+          if (verbosity > 0) {
+            cerr << "Index" << ((compressed) ? "es " : " ") << fastaindex << ((compressed) ? " and \"" + gzip_index.string() + "\"" : "") << " found" << endl;
+          }
         }
 
         assert(exists(fastaindex) and (!compressed or exists(gzip_index)));
         if (!(idx = fai_load3(fastap.c_str(), fastaindex.c_str(), gzip_index.c_str(), FAI_NONE))) {
-          cerr << "\nERROR: failed to create index" << endl;
-          exit(1);
+          throw runtime_error("ERROR:failed to create index");
         }
 
         rows = faidx_nseq(idx);
@@ -226,8 +235,7 @@ namespace msa_chunker {
           if (c == -1) {
             c = seq_len;
           } else if (seq_len != c) {
-            cerr << "ERROR: MSA has rows of different length! (" << string(seq_name) << ")" << endl;
-            exit(1);
+            throw runtime_error("ERROR: MSA has rows of different length! (" + string(seq_name) + ")");
           }
         }
         cols = c;
@@ -293,7 +301,7 @@ namespace msa_chunker {
     public:
       column_chunker() = delete;
 
-      column_chunker(const string &msapath, const msa_pos_t max_qlen, const bool verbose) {
+      column_chunker(const string &msapath, const msa_pos_t max_qlen, const int verbosity) {
         max_chunk_cols = max(MIN_CHUNK_COLS, max_qlen);
         msa_file = ifstream(msapath, std::ios::binary);
         if (!msa_file) {
@@ -305,6 +313,9 @@ namespace msa_chunker {
         std::istringstream iss(header);
         if (!(iss >> cols >> rows) || (iss >> extra)) {
           throw runtime_error("ERROR: first line must contain exactly two integers: columns and rows");
+        }
+        if (verbosity > 0) {
+          cerr << "Found column major matrix file" << endl;
         }
         matrix_start = msa_file.tellg();
       }

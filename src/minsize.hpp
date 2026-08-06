@@ -22,7 +22,7 @@ namespace minsize {
     QUEUE // RMQueue
   };
 
-  inline constexpr enum MinRange min_range = QUEUE;
+  inline constexpr enum MinRange min_range = RING;
 
   // Class for solving the min-L-size segmentation problem 
   class minsize {
