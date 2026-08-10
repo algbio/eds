@@ -143,6 +143,64 @@ namespace minsize {
           update(height, y, n[y] - height * y);
         }
       }
+      // Calculate the min-L-size for the next column (y is 1-index) using susffix tree algo
+      void next_gaps(const seg_index y) {
+        set<string> reverse_unique_chunk;
+        for (seg_index i = 0; i < r; i++) {
+          string s = idx.msa_substr(i, y - min(U, y), min(U, y));
+          if (!gaps_as_symbols)
+            s.erase(remove(s.begin(), s.end(), '-'), s.end());
+          reverse(s.begin(), s.end());
+          reverse_unique_chunk.insert(move(s));
+        }
+
+        trie::trie T(reverse_unique_chunk);
+        reverse_unique_chunk.clear();
+        set<string> reverse_chunk;
+        for (seg_index i = 0; i < r; i++) {
+          string s = idx.msa_substr(i, y - min(U, y), min(U, y));
+          reverse(s.begin(), s.end());
+          reverse_chunk.insert(s);
+        }
+
+        vector<unsigned long long> counts(T.nodes() + 1, 0);
+        vector<unsigned long long> node_length(T.nodes() + 1, 0); // length from the root
+        counts[T.nodes()] = reverse_chunk.size(); // current count of the root
+        vector<unsigned long long> active_node(reverse_chunk.size(), T.nodes());
+        for (seg_index len = 1; len <= min(U, y); len++) {
+          auto it = reverse_chunk.begin();
+          for (seg_index i = 0; i < reverse_chunk.size(); ++i, ++it) {
+            if ((*it)[len - 1] != '-') {
+              counts[active_node[i]] -= 1;
+              auto active_length = node_length[active_node[i]];
+              if (active_node[i] == T.nodes()) {
+                active_node[i] = T.child(T.root(), (*it)[len - 1]);
+              } else {
+                active_node[i] = T.child(active_node[i], (*it)[len - 1]);
+              }
+              assert(active_node[i] != trie::trie::null);
+              counts[active_node[i]] += 1;
+              node_length[active_node[i]] = active_length + 1;
+            }
+          }
+          assert(it == reverse_chunk.end());    
+          // Calculate the total length of the active nodes (segmentation size)
+          // Update min-size arrays n and back
+          if (len >= L) {
+            long long segment_size = 0;
+            for (seg_index i = 0; i <= T.nodes(); i++) {
+              if (counts[i] > 0) {
+                // empty string has size 1
+                segment_size += max(1ULL, node_length[i]);
+              }
+            }
+            if (n[y] > n[y - len] + segment_size && n[y - len] + segment_size > 0) {
+              n[y] = n[y - len] + segment_size;
+              back[y] = y - len;
+            }
+          }
+        }
+      }
     public:
       minsize(
         msa_t &idx,
@@ -183,20 +241,26 @@ namespace minsize {
       pair<seg_index, vector<pair<seg_index, seg_index>>> segment(
         const vector<vector<pair<seg_index, seg_index>>> &L_y = {}
       ) {
-        // Algorithm for gaps as symbols
-        // TODO: Add trie algo for gaps
-        for (i_type y = 1; y <= c; y++) {
-          // compute L_y if it was not given in input
-          const vector<pair<seg_index, seg_index>> *L_yy;
-          vector<pair<seg_index, seg_index>> L_yy_on_the_fly;
-          if (L_y.size() > 0) {
-            L_yy = &(*(L_y.begin() + y));
-          } else {
-            L_yy_on_the_fly = algo::compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols, use_pbwt);
-            L_yy = &L_yy_on_the_fly;
+        if (gaps_as_symbols) {
+          // algorithm for gaps as symbols from the paper
+          for (i_type y = 1; y <= c; y++) {
+            // compute L_y if it was not given in input
+            const vector<pair<seg_index, seg_index>> *L_yy;
+            vector<pair<seg_index, seg_index>> L_yy_on_the_fly;
+            if (L_y.size() > 0) {
+              L_yy = &(*(L_y.begin() + y));
+            } else {
+              L_yy_on_the_fly = algo::compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols, use_pbwt);
+              L_yy = &L_yy_on_the_fly;
+            }
+            // Algorithm for column y
+            next(y, L_yy);
           }
-          // Algorithm for column y
-          next(y, L_yy);
+        } else {
+          // suffix trie algorithm for gaps
+          for (i_type y = 1; y <= c; y++) {
+            next_gaps(y);
+          }
         }
 
         // trace back
