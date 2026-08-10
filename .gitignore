@@ -34,3 +34,4 @@ experiments/minsize/mincard-tree
 experiments/minsize/mincard-queue
 
 experiments/transpose/output
+experiments/card_vs_size/output
