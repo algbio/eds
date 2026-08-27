@@ -1,4 +1,6 @@
 mincard
+minsize
+test_rmqueue
 test/*.eds
 test/*.gfa
 test/*.fai
@@ -25,4 +27,12 @@ experiments/pbwt/mincard-naive
 experiments/pbwt/mincard-recursive
 experiments/pbwt/mincard-rmq
 
+experiments/minsize/input/*
+!experiments/minsize/input/.gitkeep
+experiments/minsize/output
+experiments/minsize/mincard-ring
+experiments/minsize/mincard-tree
+experiments/minsize/mincard-queue
+
 experiments/transpose/output
+experiments/card_vs_size/output
