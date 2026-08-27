@@ -70,10 +70,13 @@ int main(int argc, char* argv[]) {
     CLI::Option *nsopt = app.add_flag("-n,--trivial-horizontal", no_segmentation, "Use trivial S^≡ segmentation (no segmentation)")
       ->excludes(Lopt)->excludes(Uopt)->excludes(tsopt);
 
-    bool gaps_as_symbols = false;
-    app.add_flag("--gaps-as-symbols", gaps_as_symbols, "In preprocessing the MSA, consider gaps '-' as normal symbols")
-      ->excludes(tsopt)->excludes(nsopt);
+    bool gaps = false;
+    app.add_flag("--gaps", gaps, "In preprocessing the MSA, remove gap symbols '-'")
+    ->excludes(tsopt)->excludes(nsopt);
 
+    bool naive_trie = false;
+    app.add_flag("--trie", naive_trie, "Compute meaningful extensions using naive Suffix Trie instead of positional Burrows-Wheeler Transform");
+    
     bool preprocess = false;
     app.add_flag("--preprocess", preprocess, "Compute all meaningful extensions before segmenting")
       ->excludes(tsopt)->excludes(nsopt);
@@ -84,9 +87,6 @@ int main(int argc, char* argv[]) {
     bool quiet = false;
     app.add_flag("-q,--quiet", quiet, "Print only cardinality and size");
 
-    bool use_pbwt = false;
-    app.add_flag("--pbwt", use_pbwt, "Compute meaningful extensions using positional Burrows-Wheeler Transform");
-
     bool column_major = false;
     app.add_flag("--column-major", column_major, "Read msa in column-major format for faster column streaming");
 
@@ -95,6 +95,8 @@ int main(int argc, char* argv[]) {
     } catch (const CLI::ParseError &e) {
       return app.exit(e);
     }
+    bool gaps_as_symbols = !gaps;
+    bool use_pbwt = gaps_as_symbols && !naive_trie;
     // No U value specified by the user
     if (U == 0) {
       #if METRIC == CARDINALITY
@@ -114,10 +116,6 @@ int main(int argc, char* argv[]) {
     }
     if (L > U) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
-      return 1;
-    }
-    if(use_pbwt and !gaps_as_symbols){
-      cerr << "pBWT only works with the gaps as symbols strategy! Add flag --gaps-as-symbols" << endl;
       return 1;
     }
     if (verbose and quiet) {

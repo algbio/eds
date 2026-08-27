@@ -20,21 +20,21 @@ do
 	# mincard
 	for U in 4 8 16 32 64 128 256 512
 	do
-		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U -o ${base}_mincard_U${U}.eds # plain
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --gaps -U $U -o ${base}_mincard_U${U}.eds # plain
 		rm msa.fa.gz.fai msa.fa.gz.gzi
-		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U --perfect-segments -o ${base}_mincard_U${U}_p.eds # perfect segments
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --gaps -U $U --perfect-segments -o ${base}_mincard_U${U}_p.eds # perfect segments
 		rm msa.fa.gz.fai msa.fa.gz.gzi
-		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz --preprocess -v -U $U -o ${base}_mincard_U${U}.eds # preprocess
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz --gaps --preprocess -v -U $U -o ${base}_mincard_U${U}.eds # preprocess
 		rm msa.fa.gz.fai msa.fa.gz.gzi
-		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v -U $U --perfect-segments --preprocess -o ${base}_mincard_U${U}_p.eds
+		/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --gaps -U $U --perfect-segments --preprocess -o ${base}_mincard_U${U}_p.eds
 		rm msa.fa.gz.fai msa.fa.gz.gzi
 	done
 
 	# mincard trivial S^|||
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --trivial-vertical -o ${base}_mincard_t.eds
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --gaps --trivial-vertical -o ${base}_mincard_t.eds
 
 	# mincard trivial S^≡ with perfect segments
-	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --trivial-horizontal --perfect-segments -o ${base}_mincard_np.eds
+	/usr/bin/time -f"$usrbintimeformat" $mincard msa.fa.gz -v --gaps --trivial-horizontal --perfect-segments -o ${base}_mincard_np.eds
 
 	# msatoeds heuristics
 	for strat in trivial greedy double-greedy

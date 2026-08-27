@@ -46,10 +46,10 @@ algos=(
 	minsize_gapless
 )
 
-flags[mincard_gaps]=""
-flags[minsize_gaps]=""
-flags[mincard_gapless]="--gaps-as-symbols --pbwt"
-flags[minsize_gapless]="--gaps-as-symbols --pbwt"
+flags[mincard_gaps]="--gaps"
+flags[minsize_gaps]="--gaps"
+flags[mincard_gapless]=""
+flags[minsize_gapless]=""
 
 alg[mincard_gaps]="$mincard"
 alg[mincard_gapless]="$mincard"

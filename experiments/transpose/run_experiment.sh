@@ -72,14 +72,14 @@ for name in "${datasets[@]}"; do
 	    printf "\n${BLUE}Dataset: ${name} | U = ${U}${NC}\n"
 
 		# suffix trie
-		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_row" -v --gaps-as-symbols -U $U -o mincard_trie_U${U}.eds
+		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_row" -v --trie -U $U -o mincard_trie_U${U}.eds
 		t1=$(<"$tmpfile")
-		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_col" -v --gaps-as-symbols --column-major -U $U -o mincard_cm_trie_U${U}.eds
+		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_col" -v --trie --column-major -U $U -o mincard_cm_trie_U${U}.eds
 		t2=$(<"$tmpfile")
 		# pbwt
-		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_row" -v --gaps-as-symbols --pbwt -U $U -o mincard_pbwt_U${U}.eds
+		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_row" -v -U $U -o mincard_pbwt_U${U}.eds
 		t3=$(<"$tmpfile")
-		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_col" -v --gaps-as-symbols --pbwt --column-major -U $U -o mincard_cm_pbwt_U${U}.eds
+		/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" "$input_msa_col" -v --column-major -U $U -o mincard_cm_pbwt_U${U}.eds
 		t4=$(<"$tmpfile")
 	
 		if cmp -s mincard_trie_U${U}.eds mincard_cm_trie_U${U}.eds &&

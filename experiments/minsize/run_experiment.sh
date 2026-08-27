@@ -35,13 +35,13 @@ for L in "${L_values[@]}"
 do
 	printf "\n${BLUE}Comparison for L = $L${NC}\n"
 	# ring buffer
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_ring" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_ring_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_ring" msa.fa -v -L $L --min-size -o minsize_ring_L${L}.eds
 	t1=$(<"$tmpfile")
 	# rmaxtree
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_tree" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_tree_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_tree" msa.fa -v -L $L --min-size -o minsize_tree_L${L}.eds
 	t2=$(<"$tmpfile")
 	# rmqueue
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_queue" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_queue_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_queue" msa.fa -v -L $L --min-size -o minsize_queue_L${L}.eds
 	t3=$(<"$tmpfile")
 	
 	if cmp -s minsize_ring_L${L}.eds minsize_tree_L${L}.eds &&

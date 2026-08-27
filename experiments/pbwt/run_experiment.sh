@@ -36,15 +36,15 @@ for U in "${U_values[@]}"
 do
     printf "\n${BLUE}Comparison for U = $U${NC}\n"
 	# naive
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_naive" msa.fa --gaps-as-symbols --pbwt -U $U -o mincard_naive_U${U}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_naive" msa.fa -U $U -o mincard_naive_U${U}.eds
 	t1=$(<"$tmpfile")
 	naive_times+=("$t1")
 	# recursive
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_recursive" msa.fa --gaps-as-symbols --pbwt -U $U -o mincard_recursive_U${U}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_recursive" msa.fa -U $U -o mincard_recursive_U${U}.eds
 	t2=$(<"$tmpfile")
 	recursive_times+=("$t2")
 	# rmq
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_rmq" msa.fa --gaps-as-symbols --pbwt -U $U -o mincard_rmq_U${U}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_rmq" msa.fa -U $U -o mincard_rmq_U${U}.eds
 	t3=$(<"$tmpfile")
 	rmq_times+=("$t3")
 
