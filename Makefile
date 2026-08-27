@@ -12,8 +12,11 @@ SDSL_INCLUDE=ext/sdsl-lite/include/
 mincard: src/mincard.cpp src/segment.hpp src/rmqueue.h src/rmqueue.cpp src/RMaxQTree.h src/RMaxQTree.cpp src/msa_chunker.hpp src/trie.hpp src/pbwt.h src/pbwt.cpp src/algo.hpp src/minsize.hpp
 	${CXX} $(CXX_FLAGS) -DVERSION="\"$(VERSION)\"" -o mincard src/mincard.cpp src/rmqueue.cpp src/RMaxQTree.cpp src/pbwt.cpp -I $(HTSLIB_INCLUDE) -I $(OTHER_INCLUDE) -I $(SDSL_INCLUDE) $(HTSLIB_FLAGS)
 
+minsize: src/mincard.cpp src/segment.hpp src/rmqueue.h src/rmqueue.cpp src/RMaxQTree.h src/RMaxQTree.cpp src/msa_chunker.hpp src/trie.hpp src/pbwt.h src/pbwt.cpp src/algo.hpp src/minsize.hpp
+	${CXX} $(CXX_FLAGS) -DMETRIC=SIZE -DVERSION="\"$(VERSION)\"" -o minsize src/mincard.cpp src/rmqueue.cpp src/RMaxQTree.cpp src/pbwt.cpp -I $(HTSLIB_INCLUDE) -I $(OTHER_INCLUDE) -I $(SDSL_INCLUDE) $(HTSLIB_FLAGS)
+
 clean:
-	rm -f mincard
+	rm -f mincard && rm -f minsize && rm -f test_rmqueue
 
 test_rmqueue: src/test_rmqueue.cpp  src/rmqueue.cpp
 	${CXX} $(CXX_FLAGS) -o test_rmqueue src/test_rmqueue.cpp src/rmqueue.cpp

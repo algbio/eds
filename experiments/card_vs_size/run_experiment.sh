@@ -5,6 +5,7 @@ cd "$thisfolder"
 export LC_NUMERIC="en_US.UTF-8"
 
 mincard="$thisfolder/../../mincard"
+minsize="$thisfolder/../../minsize"
 
 # MSA fasta files from the 3 datasets
 input_ecoli_msa="$thisfolder/../e_coli_sim/input/msa.fa"
@@ -36,6 +37,7 @@ msa[chr19]=chr19_msa.fa
 
 # Store algorithm flags
 declare -A flags
+declare -A alg
 
 algos=(
 	mincard_gaps
@@ -45,9 +47,14 @@ algos=(
 )
 
 flags[mincard_gaps]=""
+flags[minsize_gaps]=""
 flags[mincard_gapless]="--gaps-as-symbols --pbwt"
-flags[minsize_gaps]="--min-size"
-flags[minsize_gapless]="--min-size --gaps-as-symbols --pbwt"
+flags[minsize_gapless]="--gaps-as-symbols --pbwt"
+
+alg[mincard_gaps]="$mincard"
+alg[mincard_gapless]="$mincard"
+alg[minsize_gaps]="$minsize"
+alg[minsize_gapless]="$minsize"
 
 # Create temporary files for collecting results
 outfile=$(mktemp)
@@ -85,7 +92,7 @@ for dataset in "${datasets[@]}"; do
 		
 		for algo in "${algos[@]}"; do
 		  /usr/bin/time -f"$usrbintimeformat" -o "$timefile" \
-				"$mincard" "$input_msa" \
+				${alg[$algo]} "$input_msa" \
    		  -L "$lower" -U "$upper" \
   		  -q --stats \
    		  ${flags[$algo]} > "$outfile" 2>&1;

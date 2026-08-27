@@ -23,6 +23,13 @@ using algo::seg_index, algo::compute_perfect_columns, algo::compute_all_meaningf
 typedef segment::seg_size_t seg_size_t;
 using segment::segment_stream_gfa, segment::segment_stream_eds, segment::segment_stream_no_output;
 
+// The current tool optimizes 2 metrics: cardinality and size
+#ifndef METRIC
+#define METRIC CARDINALITY
+#endif
+#define CARDINALITY 0
+#define SIZE 1
+
 int main(int argc, char* argv[]) {
     CLI::App app{"mincard version " + string(VERSION) + " — build Elastic Degenerate Strings (EDSes) from multiple sequence alignments in FASTA format"};
     argv = app.ensure_utf8(argv);
@@ -48,9 +55,6 @@ int main(int argc, char* argv[]) {
     CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length")
       ->default_val(0)
       ->expected(1, numeric_limits<int>::max());
-
-    bool min_size = false;
-    app.add_flag("--min-size", min_size, "Minimize the size of the segmentation instead of the cardinality");
 
     bool stats = false;
     app.add_flag("--stats", stats, "Calculate segmentation statistics");
@@ -93,7 +97,11 @@ int main(int argc, char* argv[]) {
     }
     // No U value specified by the user
     if (U == 0) {
-      if (min_size) {
+      #if METRIC == CARDINALITY
+        // Default upper bound for min-card
+        U = 31;
+      #endif 
+      #if METRIC == SIZE
         if (gaps_as_symbols) {
           // Implicit upper bound that keeps the segmentation optimal
           U = L * 2 - 1;
@@ -102,10 +110,7 @@ int main(int argc, char* argv[]) {
           // Arbitrary upper bound so the algorithm is practical
           U = L * 4 - 1; 
         }
-      } else {
-        // Default upper bound for min-card
-        U = 31;
-      }
+      #endif
     }
     if (L > U) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
@@ -222,23 +227,24 @@ int main(int argc, char* argv[]) {
 
       auto start = high_resolution_clock::now();
       seg_index minval; // cardinality or size
-      if (min_size) {
+      #if METRIC == CARDINALITY
+        if (verbosity > 0) {
+          cerr << "Computing the minimum-cardinality segmentation..." << flush;
+        }
+        tie(minval, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
+      #endif
+      #if METRIC == SIZE
         if (verbosity > 0) {
           cerr << "Computing the minimum-size segmentation..." << flush;
         }
         minsize::minsize alg(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
         tie(minval, segmentation) = alg.segment();
-      } else {
-        if (verbosity > 0) {
-          cerr << "Computing the minimum-cardinality segmentation..." << flush;
-        }
-        tie(minval, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
-      }
+      #endif
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       if (minval != std::numeric_limits<seg_index>::max()) {
         if (verbosity > 0) {
-          cerr << " done: " << segmentation.size() << " segments/ED words, " << minval << (min_size ? " size" : " cardinality") 
+          cerr << " done: " << segmentation.size() << " segments/ED words, " << minval << (METRIC == CARDINALITY ? " cardinality" : " size") 
                << ((verbosity > 1) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
         }
       } else {

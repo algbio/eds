@@ -3,9 +3,9 @@ set -euo pipefail
 thisfolder=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 cd "$thisfolder"
 
-mincard_ring="$thisfolder/mincard-ring"
-mincard_tree="$thisfolder/mincard-tree"
-mincard_queue="$thisfolder/mincard-queue"
+minsize_ring="$thisfolder/minsize-ring"
+minsize_tree="$thisfolder/minsize-tree"
+minsize_queue="$thisfolder/minsize-queue"
 inputmsa="$thisfolder/input/covid_100000.fa.gz"
 usrbintimeformat="%e"
 
@@ -35,13 +35,13 @@ for L in "${L_values[@]}"
 do
 	printf "\n${BLUE}Comparison for L = $L${NC}\n"
 	# ring buffer
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_ring" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_ring_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_ring" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_ring_L${L}.eds
 	t1=$(<"$tmpfile")
 	# rmaxtree
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_tree" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_tree_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_tree" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_tree_L${L}.eds
 	t2=$(<"$tmpfile")
 	# rmqueue
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard_queue" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_queue_L${L}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$minsize_queue" msa.fa -v --gaps-as-symbols --pbwt -L $L --min-size -o minsize_queue_L${L}.eds
 	t3=$(<"$tmpfile")
 	
 	if cmp -s minsize_ring_L${L}.eds minsize_tree_L${L}.eds &&
