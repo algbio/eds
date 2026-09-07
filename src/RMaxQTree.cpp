@@ -83,7 +83,7 @@ std::pair<i_type,i_type> RMaxQTree::queryTree(i_type i, i_type j, i_type node, i
 RMaxQTree::RMaxQTree() {}
 
 RMaxQTree::~RMaxQTree() {
-	delete [] this->tree;
+	if (this->tree) delete [] this->tree;
 }
 
 // For filling the empty RMaxQTrees

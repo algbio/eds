@@ -13,6 +13,7 @@
 #define RMaxQTREE_H_
 
 #include <utility>
+#include <cstddef>
 
 typedef long long i_type;
 class TreeNode {
@@ -41,7 +42,7 @@ public:
 class RMaxQTree {
 
 private:
-	TreeNode *tree;
+	TreeNode *tree = NULL;
 	i_type *keys;
 	i_type treeLen, keyLen;
 

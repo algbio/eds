@@ -252,14 +252,26 @@ namespace algo {
     seg_index perfect_first = -1, perfect_m = numeric_limits<seg_index>::max();
     const bool allow_perfect_segments = (perfect_columns.size() > 0);
 
-    RMaxQTree rmq; // TODO use range min query data structure
-    vector<i_type> keys(c + 1); // keys is passed to rmq
-    for (i_type i = 0; i <= c; ++i)
-      keys[i] = i;
-    rmq.fillRMaxQTree(keys.data(), c + 1);
+    std::optional<RMaxQTree> rmq; // TODO use range min query data structure
+    std::optional<vector<i_type>> keys;
+    vector<seg_index> rrp(0); // pointers to rightmost element in any run of values in m
+
+    if (use_pbwt) {
+            rrp.resize(c + 1, std::numeric_limits<seg_index>::max());
+    } else {
+            keys.emplace(vector<i_type>(c + 1)); // keys is passed to rmq
+            for (i_type i = 0; i <= c; ++i)
+                    (*keys)[i] = i;
+            rmq.emplace(RMaxQTree());
+            rmq->fillRMaxQTree(keys->data(), c + 1);
+    }
 
     m[0] = 0;
-    rmq.update(0, 0, 0);
+    if (use_pbwt)
+      rrp[0] = 0;
+    else
+      rmq->update(0, 0, 0);
+
     if (allow_perfect_segments) {
       perfect_m = numeric_limits<seg_index>::max();
       perfect_first = -1;
@@ -283,11 +295,23 @@ namespace algo {
 
       // optimal solution using L_y
       for (size_t j = 0; j + 1 < L_yy->size(); ++j) {
-        i_type l = (*L_yy)[j + 1].first;
-        i_type r = (*L_yy)[j].first - 1;
+        const i_type l = (*L_yy)[j + 1].first;
+        const i_type r = (*L_yy)[j].first - 1;
         if (l > r) continue;
 
-        auto [x, neg_mx] = rmq.query(l, r);
+        i_type x;
+        seg_index neg_mx;
+
+        if (use_pbwt) {
+          if (rrp[l] == std::numeric_limits<seg_index>::max())
+            x = y - 1;
+          else
+            x = rrp[l];
+          neg_mx = -m[x];
+        } else {
+          std::tie(x, neg_mx) = rmq->query(l, r);
+        }
+
         if (x == -1) continue;
         if (neg_mx == -numeric_limits<seg_index>::max()) continue;
         i_type candidate = (*L_yy)[j].second + m[x];
@@ -307,7 +331,8 @@ namespace algo {
         }
       }
 
-      rmq.update(y, y, -m[y]);
+      if (!use_pbwt)
+        rmq->update(y, y, -m[y]);
 
       // update perfect-segment run
       if (allow_perfect_segments) {
@@ -318,6 +343,11 @@ namespace algo {
           perfect_m = numeric_limits<seg_index>::max();
           perfect_first = -1;
         }
+      }
+
+      if (use_pbwt and m[y] != m[y-1]) {
+        for (i_type z = y - 1; z > 0 and rrp[z] == std::numeric_limits<seg_index>::max(); z--)
+          rrp[z] = y-1;
       }
     }
 

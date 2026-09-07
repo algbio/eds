@@ -12,6 +12,6 @@ make
 ```
 
 ## todo
-- compact tries to reduce topology ops
+- scripts for final version of experiments
 - QC on the EDSes in experiment (maybe with https://github.com/giovannarosone/EDS-BWT?)
 - show VCF workflow in README

@@ -3,6 +3,8 @@
  * Author: brunonmont
  * Source: https://codeforces.com/blog/entry/78931
  */
+#ifndef RMQ_HPP
+#define RMQ_HPP
 template<typename T> struct rmq {
 	vector<T> v; int n;
 	static const int b = 30; // block size
@@ -73,3 +75,4 @@ template<typename T> struct rmq {
 		return v[ans];
 	}
 };
+#endif // RMQ_HPP
