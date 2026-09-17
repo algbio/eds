@@ -25,7 +25,7 @@ using segment::segment_stream_gfa, segment::segment_stream_eds, segment::segment
 bool verbose = false;
 
 int main(int argc, char* argv[]) {
-    CLI::App app{"mincard version " + string(VERSION) + " — build Elastic Degenerate Strings (EDSes) from multiple sequence alignments in FASTA format"};
+    CLI::App app{"mincard version " + string(VERSION) + " — build an Elastic Degenerate String from a FASTA Multiple Sequence Alignment. By default, it considers gaps as symbols in the optimization problem, it processes the MSA with the pBWT, and considers segments of any length with no variation (perfect segments)"};
     argv = app.ensure_utf8(argv);
 
     string inputfile;
@@ -50,8 +50,8 @@ int main(int argc, char* argv[]) {
       ->default_val(31)
       ->expected(1, numeric_limits<int>::max());
 
-    bool allow_perfect_segments = false;
-    app.add_flag("-p,--perfect-segments", allow_perfect_segments, "In normal mode, additionally consider perfect segments of any length (recommended). With --trivial-vertical and --trivial-horizontal, use the maximal perfect segments and the trivial strategy in-between.");
+    bool dont_use_perfect_segments = false;
+    app.add_flag("-p,--disable-perfect-segments", dont_use_perfect_segments, "In normal mode, do not consider the perfect segments of any length. With --trivial-vertical and --trivial-horizontal, do NOT use the maximal perfect segments and the trivial strategy in-between.");
 
     bool trivial_segmentation = false;
     CLI::Option *tsopt = app.add_flag("-t,--trivial-vertical", trivial_segmentation, "Use trivial S^¦¦¦ segmentation (every column becomes an ED word)")
@@ -61,19 +61,19 @@ int main(int argc, char* argv[]) {
     CLI::Option *nsopt = app.add_flag("-n,--trivial-horizontal", no_segmentation, "Use trivial S^≡ segmentation (no segmentation)")
       ->excludes(Lopt)->excludes(Uopt)->excludes(tsopt);
 
-    bool gaps_as_symbols = false;
-    app.add_flag("--gaps-as-symbols", gaps_as_symbols, "In preprocessing the MSA, consider gaps '-' as normal symbols")
-      ->excludes(tsopt)->excludes(nsopt);
+    bool no_pbwt = false;
+    auto *nopbwtopt = app.add_flag("--no-pbwt", no_pbwt, "Compute the meaningful extensions with keyword trees (slow)");
+
+    bool gaps_as_gaps = true;
+    auto *gagopt = app.add_flag("--gaps-as-gaps", gaps_as_gaps, "In preprocessing the MSA, consider gaps '-' as real gaps and not a normal alphabet symbol")
+      ->excludes(tsopt)->excludes(nsopt)->needs(nopbwtopt);
 
     bool preprocess = false;
-    app.add_flag("--preprocess", preprocess, "Compute all meaningful extensions before segmenting")
+    app.add_flag("--preprocess", preprocess, "Precompute all meaningful extensions before segmenting")
       ->excludes(tsopt)->excludes(nsopt);
 
     bool verbose = false;
     app.add_flag("-v,--verbose", verbose, "Print running times");
-
-    bool use_pbwt = false;
-    app.add_flag("--pbwt", use_pbwt, "Compute meaningful extensions using positional Burrows-Wheeler Transform");
 
     bool column_major = false;
     app.add_flag("--column-major", column_major, "Read msa in column-major format for faster column streaming");
@@ -83,12 +83,9 @@ int main(int argc, char* argv[]) {
     } catch (const CLI::ParseError &e) {
       return app.exit(e);
     }
+
     if (L > U) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
-      return 1;
-    }
-    if(use_pbwt and !gaps_as_symbols){
-      cerr << "pBWT only works with the gaps as symbols strategy! Add flag --gaps-as-symbols" << endl;
       return 1;
     }
 
@@ -104,7 +101,7 @@ int main(int argc, char* argv[]) {
     cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
 
     vector<bool> perfect_columns = {};
-    if (allow_perfect_segments) {
+    if (!dont_use_perfect_segments) {
       seg_index p;
       auto start = high_resolution_clock::now();
       tie(p, perfect_columns) = compute_perfect_columns(idx, r, c);
@@ -120,7 +117,7 @@ int main(int argc, char* argv[]) {
       segmentation.reserve(c);
       for (seg_index i = 1; i <= c; ++i) {
         seg_index j = i;
-        if (allow_perfect_segments and perfect_columns[j]) {
+        if (!dont_use_perfect_segments and perfect_columns[j]) {
           while (perfect_columns[j]) 
             j += 1;
           j -= 1;
@@ -134,7 +131,7 @@ int main(int argc, char* argv[]) {
     } else if (no_segmentation) {
       cerr << "Computing the S^≡ segmentation..." << flush;
       auto start = high_resolution_clock::now();
-      if (!allow_perfect_segments) {
+      if (dont_use_perfect_segments) {
         segmentation.push_back({ 1, c });
       } else {
         for (seg_index i = 1; i <= c; ++i) {
@@ -152,13 +149,13 @@ int main(int argc, char* argv[]) {
       auto duration = duration_cast<milliseconds>(stop - start);
       cerr << " done: "  << segmentation.size() << " segments/ED words" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
     } else {
-      cerr << "The allowed segments are" << ((allow_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
+      cerr << "The allowed segments are" << ((!dont_use_perfect_segments) ? " perfect segments and those" : "") << " of length [" << L << ".." << U << "]" << endl;
 
       vector<vector<pair<seg_index, seg_index>>> L_y;
       if (preprocess) {
         cerr << "Computing the meaningful extensions..." << flush;
         auto start = high_resolution_clock::now();
-        L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_symbols, use_pbwt);
+        L_y = compute_all_meaningful_extensions(idx, r, c, L, U, gaps_as_gaps, no_pbwt);
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<milliseconds>(stop - start);
         cerr << " done" << ((verbose) ? " (" + to_string(duration.count()) + "ms)" : "") << endl;
@@ -167,7 +164,7 @@ int main(int argc, char* argv[]) {
       cerr << "Computing the minimum-cardinality segmentation..." << flush;
       auto start = high_resolution_clock::now();
       seg_index mincard;
-      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_symbols, use_pbwt, L_y, perfect_columns);
+      tie(mincard, segmentation) = segment_with_rmq(idx, r, c, L, U, gaps_as_gaps, no_pbwt, L_y, perfect_columns);
       auto stop = high_resolution_clock::now();
       auto duration = duration_cast<milliseconds>(stop - start);
       if (mincard != std::numeric_limits<seg_index>::max()) {

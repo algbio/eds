@@ -31,10 +31,10 @@ namespace algo {
       const seg_index L,
       const seg_index U,
       const seg_index y,
-      const bool gaps_as_symbols,
-      const bool use_pbwt
+      const bool gaps_as_gaps,
+      const bool no_pbwt
       ) {
-    if (use_pbwt) {
+    if (!no_pbwt) {
       pbwt::pbwt& PBWT = pbwt::pbwt::instance(r);
       return PBWT.compute_meaningful_extensions(idx, r, c, L, U, y);
     }
@@ -43,11 +43,11 @@ namespace algo {
     if (y < L) {
       return L_y; // No extension possible
     }
-    
+
     set<string> reverse_unique_chunk;
     for (seg_index i = 0; i < r; i++) {
       string s = idx.msa_substr(i, y - min(U, y), min(U, y));
-      if (!gaps_as_symbols)
+      if (gaps_as_gaps)
         s.erase(remove(s.begin(), s.end(), '-'), s.end());
       reverse(s.begin(), s.end());
       reverse_unique_chunk.insert(move(s));
@@ -73,7 +73,7 @@ namespace algo {
         unsigned long long prev_height = height;
         auto it = reverse_chunk.begin();
         for (seg_index i = 0; i < reverse_chunk.size(); ++i, ++it) {
-          if (gaps_as_symbols or (*it)[len - 1] != '-') {
+          if (!gaps_as_gaps or (*it)[len - 1] != '-') {
             counts[active_node[i]] -= 1;
             if (counts[active_node[i]] == 0) {
               height -= 1;
@@ -97,7 +97,7 @@ namespace algo {
         }
       }
     } else {
-      if (gaps_as_symbols) {
+      if (!gaps_as_gaps) {
         L_y.emplace_back(y - L + 1, 1);
       } else {
         set<string> reverse_chunk;
@@ -154,7 +154,7 @@ namespace algo {
       const seg_index L,
       const seg_index U,
       const seg_index y,
-      const bool gaps_as_symbols
+      const bool gaps_as_gaps
       ) {
     vector<pair<seg_index, seg_index>> L_y;  // 1-based indexing
     if (y < L) {
@@ -169,7 +169,7 @@ namespace algo {
 
       for (seg_index i = 0; i < r; ++i) {
         string s = idx.msa_substr(i, start - 1, len);
-        if (!gaps_as_symbols)
+        if (gaps_as_gaps)
           s.erase(remove(s.begin(), s.end(), '-'), s.end());
         unique_strings.insert(s);
       }
@@ -195,13 +195,13 @@ namespace algo {
       const seg_index c,
       const seg_index Lbound,
       const seg_index Ubound,
-      const bool gaps_as_symbols,
-      const bool use_pbwt
+      const bool gaps_as_gaps,
+      const bool no_pbwt
       ) {
     vector<vector<pair<seg_index, seg_index>>> L(c + 1);  // 1-based indexing
 
     for (seg_index y = 1; y <= c; ++y) {
-      L[y] = compute_meaningful_extensions(idx, r, c, Lbound, Ubound, y, gaps_as_symbols, use_pbwt);
+      L[y] = compute_meaningful_extensions(idx, r, c, Lbound, Ubound, y, gaps_as_gaps, no_pbwt);
     }
 
     return L;
@@ -230,7 +230,7 @@ namespace algo {
 
   const vector<bool> perfect_columns_dummy = {};
   /* find the minimum-cardinality segmentation of MSA[1..r][1..c] (indexed by
-   *   idx) respecting lower bound L, upper bound U, gaps_as_symbols strategy,
+   *   idx) respecting lower bound L, upper bound U, gaps-as-symbols strategy,
    *   optionally given the meaningful left extensions L_y and perfect_column
    *   info (Algorithm 1 in the paper)
    * returns: pair {cardinality, segmentation}, with cardinality =
@@ -241,8 +241,8 @@ namespace algo {
       const seg_index c,
       const int L,
       const int U,
-      const bool gaps_as_symbols,
-      const bool use_pbwt,
+      const bool gaps_as_gaps,
+      const bool no_pbwt,
       const vector<vector<pair<seg_index, seg_index>>> &L_y,
       const vector<bool> &perfect_columns = perfect_columns_dummy
       ) {
@@ -256,7 +256,7 @@ namespace algo {
     std::optional<vector<i_type>> keys;
     vector<seg_index> rrp(0); // pointers to rightmost element in any run of values in m
 
-    if (use_pbwt) {
+    if (!no_pbwt) {
             rrp.resize(c + 1, std::numeric_limits<seg_index>::max());
     } else {
             keys.emplace(vector<i_type>(c + 1)); // keys is passed to rmq
@@ -267,7 +267,7 @@ namespace algo {
     }
 
     m[0] = 0;
-    if (use_pbwt)
+    if (!no_pbwt)
       rrp[0] = 0;
     else
       rmq->update(0, 0, 0);
@@ -286,11 +286,11 @@ namespace algo {
       if (L_y.size() > 0) {
         L_yy = &(*(L_y.begin() + y));
       } else {
-        L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_symbols, use_pbwt);
+        L_yy_on_the_fly = compute_meaningful_extensions(idx, r, c, L, U, y, gaps_as_gaps, no_pbwt);
         L_yy = &L_yy_on_the_fly;
       }
 #ifdef ALGO_DEBUG
-      assert(*L_yy == compute_meaningful_extensions_naive(idx, r, c, L ,U, y, gaps_as_symbols));
+      assert(*L_yy == compute_meaningful_extensions_naive(idx, r, c, L ,U, y, gaps_as_gaps));
 #endif
 
       // optimal solution using L_y
@@ -302,7 +302,7 @@ namespace algo {
         i_type x;
         seg_index neg_mx;
 
-        if (use_pbwt) {
+        if (!no_pbwt) {
           if (rrp[l] == std::numeric_limits<seg_index>::max())
             x = y - 1;
           else
@@ -331,7 +331,7 @@ namespace algo {
         }
       }
 
-      if (!use_pbwt)
+      if (no_pbwt)
         rmq->update(y, y, -m[y]);
 
       // update perfect-segment run
@@ -345,7 +345,7 @@ namespace algo {
         }
       }
 
-      if (use_pbwt and m[y] != m[y-1]) {
+      if (!no_pbwt and m[y] != m[y-1]) {
         for (i_type z = y - 1; z > 0 and rrp[z] == std::numeric_limits<seg_index>::max(); z--)
           rrp[z] = y-1;
       }

@@ -26,3 +26,5 @@ experiments/pbwt/mincard-recursive
 experiments/pbwt/mincard-rmq
 
 experiments/transpose/output
+
+docs/eds_construction
