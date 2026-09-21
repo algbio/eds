@@ -35,11 +35,11 @@ for U in "${U_values[@]}"
 do
     printf "\n${BLUE}Comparison for U = $U${NC}\n"
 	# trie run
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" msa.fa --gaps-as-symbols -U $U -o mincard_U${U}.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" msa.fa --no-pbwt --disable-perfect-segments -U $U -o mincard_U${U}.eds
 	t1=$(<"$tmpfile")
 	trie_times+=("$t1")
 	# pbwt run
-	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" msa.fa --gaps-as-symbols --pbwt -U $U -o mincard_U${U}_pbwt.eds
+	/usr/bin/time -f"$usrbintimeformat" -o "$tmpfile" "$mincard" msa.fa --disable-perfect-segments -U $U -o mincard_U${U}_pbwt.eds
 	t2=$(<"$tmpfile")
 	pbwt_times+=("$t2")
 

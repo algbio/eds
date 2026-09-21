@@ -1,19 +1,17 @@
-# `chr19`
-After checking out the "getting the dataset" subsection, compile `mincard`, obtain the `msatoeds` scripts, and run the experiment with commands
+# `chr19` experiment
+To obtain the dataset, you need [`seqtk`](https://github.com/lh3/seqtk). If it's not installed on your system, get it and compile it with commands
+```sh
+git submodule update --init ../ext/seqtk
+make -C ../ext/seqtk
+```
+Then, get the dataset (~60GB) with command
+```sh
+./get_dataset.sh
+```
+
+Compile `mincard`, obtain the `msatoeds` script, and run the experiment (<100GB of RAM) with commands
 ```
 make -C ../../
 git submodule update --init ../ext/junctions
 ./run_experiment.sh
 ```
-
-Afterwards, the resulting EDSes can be verified using 16 threads with script
-```
-./verify_edses.sh 16
-```
-
-## getting the dataset
-The script `get_datasets.sh` assumes that you have [`seqtk`](https://github.com/lh3/seqtk) installed and visible by your `PATH` environment variable (modify `get_datasets.sh` accordingly if you get the program some other way).
-```
-./get_datasets.sh
-```
-

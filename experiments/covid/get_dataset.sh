@@ -9,7 +9,7 @@ minimap2_folder=$thisfolder/../ext/minimap2
 export PATH=$minimap2_folder:$PATH
 datasets=datasets
 
-for p in $viralmsa $minimap2_folder/minimap2 $datasets openssl
+for p in $viralmsa $minimap2_folder/minimap2 $datasets openssl bgzip
 do
 	if ! command -v $p >/dev/null 2>&1
 	then
