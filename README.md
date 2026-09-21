@@ -11,7 +11,6 @@ make
 By default, `mincard` sets a maximum segment length of 31, processes the MSA efficiently with the positional Burrows–Wheeler transform, treats the gaps as normal alphabet symbols when optimizing the cardinality, and considers MSA segments with no variation (perfect segments) even when longer than the allowed segment length. The most influential parameter on the cardinality and size of the output EDS is the upper bound on the segment length `-U`. See`./mincard -h` for the complete list of options.
 
 ## todo
-- support unbounded segment length `-U 0`
 - QC on the EDSes in experiment (maybe with https://github.com/giovannarosone/EDS-BWT?)
 - show VCF workflow in README
 - document, provide scripts, or complete the `--column-major` option (maybe use an existing pBWT format?)

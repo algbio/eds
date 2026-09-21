@@ -43,12 +43,12 @@ int main(int argc, char* argv[]) {
     seg_index L;
     CLI::Option *Lopt = app.add_option("-L,--min-segment-length", L, "Minimum segment length")
       ->default_val(1)
-      ->expected(1, numeric_limits<int>::max());
+      ->check(CLI::Range(1, numeric_limits<int>::max()));
 
     seg_index U;
-    CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length")
+    CLI::Option *Uopt = app.add_option("-U,--max-segment-length", U, "Maximum segment length (0 for no upper bound)")
       ->default_val(31)
-      ->expected(1, numeric_limits<int>::max());
+      ->check(CLI::Range(0, numeric_limits<int>::max()));
 
     bool dont_use_perfect_segments = false;
     app.add_flag("-p,--disable-perfect-segments", dont_use_perfect_segments, "In normal mode, do not consider the perfect segments of any length. With --trivial-vertical and --trivial-horizontal, do NOT use the maximal perfect segments and the trivial strategy in-between.");
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
       return app.exit(e);
     }
 
-    if (L > U) {
+    if (U != 0 and L > U) {
       cerr << "Upper and lower bounds are not compatible!" << endl;
       return 1;
     }
@@ -99,6 +99,14 @@ int main(int argc, char* argv[]) {
     const int r = idx.get_rows();
     const int c = idx.get_cols();
     cerr << "Processing MSA[1.." << r << ",1.." << c << "] (\"" << inputfile << "\")" << endl;
+
+    if (U == 0) {
+      U = c;
+    }
+    if (L > c) {
+      cerr << "Lower bound is larger than MSA columns!" << endl;
+      return 1;
+    }
 
     vector<bool> perfect_columns = {};
     if (!dont_use_perfect_segments) {
