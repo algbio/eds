@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
     bool no_pbwt = false;
     auto *nopbwtopt = app.add_flag("--no-pbwt", no_pbwt, "Compute the meaningful extensions with keyword trees (slow)");
 
-    bool gaps_as_gaps = true;
+    bool gaps_as_gaps = false;
     auto *gagopt = app.add_flag("--gaps-as-gaps", gaps_as_gaps, "In preprocessing the MSA, consider gaps '-' as real gaps and not a normal alphabet symbol")
       ->excludes(tsopt)->excludes(nsopt)->needs(nopbwtopt);
 
