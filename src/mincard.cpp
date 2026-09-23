@@ -90,10 +90,16 @@ int main(int argc, char* argv[]) {
     }
 
     std::unique_ptr<msa_chunker::msa_chunker> storage;
-    if (column_major)
+    if (column_major) {
         storage = std::make_unique<msa_chunker::column_chunker>(inputfile, U);
-    else
-        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose);
+    } else {
+        string err;
+        storage = std::make_unique<msa_chunker::fasta_chunker>(inputfile, U, verbose, err);
+        if (err != "") {
+          cerr << "ERROR in opening " << inputfile << ": " << err << endl;
+          return 1;
+        }
+    }
     msa_chunker::msa_chunker& idx = *storage;
 
     const int r = idx.get_rows();

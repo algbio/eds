@@ -88,16 +88,21 @@ namespace msa_chunker {
       fasta_chunker() = delete;
 
       /*
-       * index a given (gzipped) FASTA file
+       * index a given (gzipped) FASTA file; write a non-empty error message on failure
        */
-      fasta_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose) {
+      fasta_chunker(const string &fastapath, const msa_pos_t max_qlen, const bool verbose, string &error) {
         max_chunk_cols = max(max_qlen, MIN_CHUNK_COLS);
         path fastap(fastapath);
         path fastaindex(fastapath + ".fai");
         path gzip_index(fastapath + ".gzi");
         bool compressed = false;
+        error = "";
         {
           BGZF *bgzf = bgzf_open(fastap.c_str(), "r");
+          if (bgzf == 0) {
+            error = string(strerror(errno));
+            return;
+          }
           if (bgzf->is_compressed) {
             compressed = true;
           }
